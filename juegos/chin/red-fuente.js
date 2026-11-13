@@ -32,6 +32,50 @@ function accionLimpia(a) {
   return null;
 }
 
+
+// ---------- lo que llega del anfitrión no es de fiar: se reconstruye campo por campo ----------
+const ent = (x, max = 1000) => (Number.isInteger(x) && x >= 0 && x <= max ? x : 0);
+const num = (x) => (Number.isFinite(x) ? x : 0);
+const lado = (x) => (x === 0 || x === 1 ? x : 0);
+const cartaOk = (c) => (typeof c === "string" && /^([1-9]|1[0-2])-(espada|basto|oro|copa)$/.test(c) ? c : null);
+const par = (a, f) => [f(a?.[0]), f(a?.[1])];
+/** Vista del anfitrión → vista con solo los campos y tipos que la pantalla espera. */
+export function vistaLimpia(v) {
+  const pilas = [0, 1].map((i) => ({ tope: cartaOk(v.pilas?.[i]?.tope), n: ent(v.pilas?.[i]?.n, 400) }));
+  const c = v.coincidencia;
+  return {
+    juego: "chin", yo: 1, nombres: ["", ""],
+    fase: v.fase === "fin" ? "fin" : "jugando",
+    ganador: v.ganador === 0 || v.ganador === 1 ? v.ganador : null,
+    arranca: num(v.arranca), ventanaFinal: num(v.ventanaFinal),
+    cartas: par(v.cartas, (x) => ent(x, 400)), enMazo: par(v.enMazo, (x) => ent(x, 400)),
+    mano: par(v.mano, cartaOk), pilas,
+    coincidencia: c && Number.isInteger(c.id) ? { id: c.id, t: num(c.t), carta: cartaOk(c.carta) } : null,
+    finPendiente: v.finPendiente && typeof v.finPendiente === "object" ? { jugador: lado(v.finPendiente.jugador), hasta: num(v.finPendiente.hasta) } : null,
+    chins: par(v.chins, (x) => ent(x, 400)), llevadas: par(v.llevadas, (x) => ent(x, 4000)),
+    ultimo: null, seq: ent(v.seq, 1e9), acciones: [],
+  };
+}
+/** Eventos: solo los tipos conocidos y con campos del tipo esperado. */
+export function eventosLimpios(ev) {
+  const out = [];
+  for (const e of Array.isArray(ev) ? ev.slice(0, 20) : []) {
+    if (!e || typeof e !== "object") continue;
+    switch (e.t) {
+      case "voltear": out.push({ t: "voltear", jugador: lado(e.jugador), carta: cartaOk(e.carta) }); break;
+      case "poner": out.push({ t: "poner", jugador: lado(e.jugador), carta: cartaOk(e.carta), pila: lado(e.pila) }); break;
+      case "coincidencia": out.push({ t: "coincidencia", id: ent(e.id, 1e9), carta: cartaOk(e.carta) }); break;
+      case "se_rompio": out.push({ t: "se_rompio", id: ent(e.id, 1e9), por: lado(e.por) }); break;
+      case "chin": out.push({ t: "chin", jugador: lado(e.jugador), perdedor: lado(e.perdedor), reaccion: Math.max(0, Math.min(60000, num(e.reaccion))) }); break;
+      case "fin": out.push({ t: "fin", ganador: lado(e.ganador) }); break;
+      case "revancha": out.push({ t: "revancha" }); break;
+      case "quiere_revancha": out.push({ t: "quiere_revancha", jugador: lado(e.jugador) }); break;
+      default:
+    }
+  }
+  return out;
+}
+
 function base() {
   const subs = new Set(), subsE = new Set(), subsC = new Set();
   return {
@@ -181,14 +225,14 @@ export function entrarComoInvitado(codigo, yo) {
       switch (m.t) {
         case "vista":
           if (!m.v || typeof m.v !== "object") return;
-          v = m.v;
+          v = vistaLimpia(m.v);
           if (Array.isArray(m.jug) && m.jug.length === 2) {
             jug = m.jug.map((x) => ({ nombre: limpiarNombre(x.nombre), estilo: limpiarEstilo(x.estilo), id: idOk(x.id) }));
             nombres = jug.map((x) => x.nombre);
             v.nombres = nombres;
           }
           if (listo) { const f = listo; listo = null; f(); }
-          b.subs.forEach((f) => f(v, Array.isArray(m.ev) ? m.ev : []));
+          b.subs.forEach((f) => f(v, eventosLimpios(m.ev)));
           break;
         case "pong": {
           const t1 = ahora();

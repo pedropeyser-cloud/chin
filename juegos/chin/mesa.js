@@ -301,8 +301,8 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
         <p class="fin-titulo ${gane ? "gane" : "perdi"}">${gane ? "¡Ganaste!" : "Perdiste"}</p>
         <p class="fin-sub">${gane ? `Te quedaste sin cartas antes que ${esc(nombres[rv])}.` : `${esc(nombres[rv])} se quedó sin cartas primero.`}</p>
         <ul class="fin-datos">
-          <li><b>${v.chins[yo]}</b> CHIN tuyos</li>
-          <li><b>${v.chins[rv]}</b> de ${esc(nombres[rv])}</li>
+          <li><b>${Number(v.chins[yo]) || 0}</b> CHIN tuyos</li>
+          <li><b>${Number(v.chins[rv]) || 0}</b> de ${esc(nombres[rv])}</li>
           ${prom !== null ? `<li>reaccionaste en <b>${prom} ms</b> en promedio</li>` : ""}
         </ul>
         <div class="fin-botones">
