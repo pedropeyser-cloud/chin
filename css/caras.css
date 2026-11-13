@@ -1,0 +1,40 @@
+/* Aparejo de las caras «recorte de papel» (copiado de truco/juego/css/mesa.css) + reacciones de CHIN */
+/* aparejo de la cara (señas y cabeza) */
+.cara-jugador .m, .cara-jugador .ojo-c { display: none; }
+.cara-jugador[data-boca="normal"] .m-normal, .cara-jugador[data-boca="plana"] .m-plana, .cara-jugador[data-boca="der"] .m-der, .cara-jugador[data-boca="izq"] .m-izq,
+.cara-jugador[data-boca="muerde"] .m-muerde, .cara-jugador[data-boca="trompa"] .m-trompa, .cara-jugador[data-boca="lengua"] .m-lengua, .cara-jugador[data-boca="cachetes"] .m-cachetes { display: inline; }
+.cara-jugador[data-ojos="cerrados"] .ojo-a { display: none; }
+.cara-jugador[data-ojos="cerrados"] .ojo-c { display: inline; }
+.cara-jugador[data-ojos="guino"] .ojo-a.d { display: none; }
+.cara-jugador[data-ojos="guino"] .ojo-c.d { display: inline; }
+.cara-jugador .cejas { transition: transform .12s ease-out; }
+.cara-jugador[data-cejas="arriba"] .cejas { transform: translateY(-11px); }
+.cara-jugador .cachete { transform-box: fill-box; transform-origin: center; transition: transform .14s, opacity .14s; }
+.cara-jugador[data-cach="si"] .cachete { transform: scale(1.7); opacity: .85; }
+.cara-jugador .craneo { transform-box: fill-box; transform-origin: center; transition: transform .14s; }
+.cara-jugador[data-cach="si"] .craneo { transform: scaleX(1.07); }
+.cara-jugador .cabeza, .cara-jugador .rasgos { transform-box: view-box; transform-origin: 100px 190px; }
+.g-si .cabeza { animation: si-c .9s ease-in-out; } .g-si .rasgos { animation: si-r .9s ease-in-out; }
+.g-no .cabeza { animation: no-c .9s ease-in-out; } .g-no .rasgos { animation: no-r .9s ease-in-out; }
+.g-mas .cabeza { animation: mas-c 1.1s ease-in-out; } .g-mas .rasgos { animation: mas-r 1.1s ease-in-out; }
+.g-menos .cabeza { animation: menos-c 1.1s ease-in-out; } .g-menos .rasgos { animation: menos-r 1.1s ease-in-out; }
+@keyframes si-c { 25%, 75% { transform: translateY(6px); } 50% { transform: translateY(-2px); } }
+@keyframes si-r { 25%, 75% { transform: translateY(12px); } 50% { transform: translateY(-4px); } }
+@keyframes no-c { 20%, 60% { transform: rotate(-5deg); } 40%, 80% { transform: rotate(5deg); } }
+@keyframes no-r { 20%, 60% { transform: translateX(-12px); } 40%, 80% { transform: translateX(12px); } }
+@keyframes mas-c { 20%, 75% { transform: translateY(-5px); } }
+@keyframes mas-r { 20%, 75% { transform: translateY(-13px); } }
+@keyframes menos-c { 20%, 75% { transform: translateY(5px); } }
+@keyframes menos-r { 20%, 75% { transform: translateY(14px); } }
+
+/* ---------- textos de la mesa ---------- */
+.eq-bazas { position: absolute; z-index: 20; left: 14px; top: calc(60px + env(safe-area-inset-top)); font-family: Caveat; font-size: 20px; line-height: 1.05; color: var(--ambar); pointer-events: none; max-width: 34%; transform: rotate(-3deg); }
+/* reacciones de CHIN */
+.cara-jugador[data-boca="risa"] .m-risa { display: inline; }
+.cara-jugador[data-cejas="bajas"] .cejas { transform: translateY(5px); }
+.cara-jugador[data-cejas="bajas"] .cejas path:first-child { transform: rotate(14deg); transform-origin: 76px 82px; }
+.cara-jugador[data-cejas="bajas"] .cejas path:last-child { transform: rotate(-14deg); transform-origin: 124px 82px; }
+@media (prefers-reduced-motion: reduce) {
+  .cara-jugador .cejas, .cara-jugador .cachete, .cara-jugador .craneo { transition: none; }
+  .g-si .cabeza, .g-no .cabeza, .g-mas .cabeza, .g-menos .cabeza, .g-si .rasgos, .g-no .rasgos, .g-mas .rasgos, .g-menos .rasgos { animation: none; }
+}

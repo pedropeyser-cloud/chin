@@ -1,0 +1,54 @@
+/* Base de la plataforma: «pulpería de noche» (tokens heredados de truco/juego/css/estilo.css) */
+@font-face { font-family: Bricolage; src: url(../fuentes/BricolageGrotesque.ttf); font-weight: 200 800; font-display: swap; }
+@font-face { font-family: Plex; src: url(../fuentes/IBMPlexMono-Regular.ttf); font-display: swap; }
+@font-face { font-family: Caveat; src: url(../fuentes/Caveat.ttf); font-weight: 400 700; font-display: swap; }
+
+:root {
+  --noche: #14171c; --papel: #ebe4d4; --tinta: #14171c; --ambar: #f0a93b; --ambar-p: #b8621b; --dorso: #1e222a;
+  --superficie: #1b1f26; --linea: #353b46; --gris: #8d919a; --texto-suave: #c9c3b5; --pano: #1c2a26;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body { background: var(--noche); color: var(--papel); font-family: Bricolage, system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+  overflow: hidden; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px; }
+
+.grano { position: fixed; inset: 0; pointer-events: none; z-index: 90; opacity: .09; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"); }
+
+/* la lámpara de arriba */
+.pantalla { position: fixed; inset: 0; }
+.pantalla::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 40;
+  background: radial-gradient(ellipse 62% 58% at 50% -6%, rgba(255,214,150,.26), rgba(255,214,150,.07) 55%, transparent 78%),
+              radial-gradient(ellipse 120% 90% at 50% 45%, transparent 50%, rgba(0,0,0,.45)); }
+
+.boton { min-height: 48px; padding: 10px 22px; border-radius: 99px; border: 1px solid var(--linea); background: var(--superficie); font-weight: 600; font-size: 17px; }
+.boton.primario { background: var(--ambar); color: var(--tinta); border-color: var(--ambar); }
+.boton.suave { background: transparent; color: var(--gris); }
+.boton:active { transform: scale(.97); }
+.svg-carta { display: block; width: 100%; height: 100%; }
+
+/* ---------- inicio ---------- */
+.inicio { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+  padding: max(28px, env(safe-area-inset-top)) 20px 28px; text-align: center; overflow-y: auto; }
+.inicio .sello { font-family: Caveat; font-size: clamp(88px, 26vw, 150px); line-height: .8; font-weight: 700; color: var(--ambar); letter-spacing: .01em; }
+.inicio .lema { color: var(--texto-suave); max-width: 30ch; line-height: 1.4; font-size: 17px; }
+.inicio .grupo { display: flex; flex-direction: column; gap: 10px; align-items: center; width: min(360px, 100%); }
+.inicio .etiqueta { font-family: Plex; font-size: 12px; color: var(--gris); }
+.inicio .dificultades { display: flex; gap: 8px; width: 100%; }
+.inicio .dif { flex: 1; min-height: 64px; padding: 8px 6px; border-radius: 16px; border: 1px solid var(--linea); background: var(--superficie); display: flex; flex-direction: column; gap: 2px; align-items: center; justify-content: center; }
+.inicio .dif b { font-size: 16px; }
+.inicio .dif small { font-family: Plex; font-size: 10.5px; color: var(--gris); }
+.inicio .dif[aria-pressed=true] { border-color: var(--ambar); background: rgba(240,169,59,.1); }
+.inicio .dif[aria-pressed=true] b { color: var(--ambar); }
+.inicio .jugar { width: min(360px, 100%); font-size: 22px; min-height: 58px; }
+.inicio .reglas { max-width: 38ch; font-size: 14.5px; line-height: 1.5; color: var(--texto-suave); text-align: left; }
+.inicio .reglas summary { text-align: center; cursor: pointer; color: var(--ambar); font-family: Caveat; font-size: 22px; }
+.inicio .reglas ul { margin: 8px 0 0 18px; display: grid; gap: 4px; }
+.inicio .pronto { font-family: Plex; font-size: 11px; color: var(--gris); }
+
+.inicio .sello.chico { font-size: clamp(64px, 18vw, 96px); }
+.inicio .link { width: 100%; background: var(--superficie); color: var(--papel); border: 1px solid var(--linea); border-radius: 12px; padding: 12px; font-family: Plex; font-size: 12.5px; user-select: text; -webkit-user-select: text; }

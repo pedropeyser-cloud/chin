@@ -1,0 +1,73 @@
+// Arranque de la plataforma: lobby (Jugar / Pulpería / Vos) y los juegos del catálogo (nucleo/registro.js).
+// Todo el estado de cuenta vive en nucleo/nube.js; cada juego se abre con su propio flujo (juegos/<id>/flujo.js).
+import "./nucleo/vigia.js";
+import "./nucleo/sin-red.js";
+import * as nube from "./nucleo/nube.js";
+import { montarLobby } from "./nucleo/lobby.js";
+import { juegoPorId } from "./nucleo/registro.js";
+import { estiloParaMesa, formaDe } from "./nucleo/catalogo.js";
+
+const app = document.getElementById("app");
+const params = new URLSearchParams(location.search);
+let desmontarLobby = null, juegoAbierto = null;
+
+/** Quién soy para las mesas: el perfil si hay, o un invitado sin gloria. */
+function yo(enRed = false) {
+  const p = nube.miPerfil();
+  if (!p) return { nombre: enRed ? "Jugador" : "Vos", estilo: {}, id: null };
+  return { nombre: p.usuario, estilo: { ...estiloParaMesa(p), cara: formaDe(p) }, id: p.id };
+}
+
+/** Al terminar una partida con un amigo: el anfitrión la propone y cada uno la confirma (la gloria se reparte cuando confirmaron los dos). */
+async function alFin({ v, fuente, codigo, n }) {
+  const p = nube.miPerfil();
+  if (!p || fuente.esLocal) return;
+  const ids = fuente.jugadores().map((j) => j.id);
+  if (!ids[0] || !ids[1] || ids[0] === ids[1] || ids[fuente.yo] !== p.id || v.ganador === null) return;
+  const id = `chin-${codigo}-${n}`;
+  try {
+    if (fuente.esAnfitrion) {
+      await nube.registrarPartidaJuego({ id, juego: "chin", ganador: v.ganador, restantes: v.cartas[1 - v.ganador], jugadores: [{ id: ids[0], lado: 0 }, { id: ids[1], lado: 1 }] });
+    }
+    await nube.confirmarPartidaJuego(id, v.ganador);
+  } catch (e) { console.warn("no se pudo anotar la partida:", e.message); }
+}
+
+const ctx = {
+  yo: () => yo(true),
+  volver: () => { limpiarJuego(); history.replaceState(null, "", location.pathname); inicio(); },
+  alFin,
+};
+function limpiarJuego() { if (juegoAbierto) { juegoAbierto.cerrar?.(); juegoAbierto = null; } }
+
+function inicio(tab = "jugar") {
+  if (desmontarLobby) desmontarLobby();
+  desmontarLobby = montarLobby(app, { tab, abrirJuego });
+}
+
+async function abrirJuego(id) {
+  const j = juegoPorId(id);
+  if (!j) return;
+  if (j.estado === "enlace") { location.href = j.url; return; }
+  if (desmontarLobby) { desmontarLobby(); desmontarLobby = null; }
+  juegoAbierto = await j.abrir();
+  juegoAbierto.menu(app, { ...ctx, yo: () => yo(false) });
+}
+
+async function arrancar() {
+  // la sesión de Google vuelve en la URL: esperamos un momento para entrar con el perfil puesto
+  await Promise.race([nube.iniciar().catch(() => {}), new Promise((r) => setTimeout(r, 2500))]);
+  const sala = params.get("sala");
+  if (sala && /^[a-z0-9]{6}$/.test(sala)) {
+    const j = juegoPorId(params.get("juego") || "chin");
+    if (j?.abrir) { juegoAbierto = await j.abrir(); juegoAbierto.entrar(app, sala, ctx); return; }
+  }
+  // pruebas en el navegador: ?auto=1 salta el lobby y juega contra el bot (&dif=tranquilo|rapido|implacable)
+  if (params.get("auto")) {
+    juegoAbierto = await juegoPorId("chin").abrir();
+    juegoAbierto.contraBot(app, { ...ctx, yo: () => yo(false) }, params.get("dif"));
+    return;
+  }
+  inicio(params.get("tab") || "jugar");
+}
+arrancar();
