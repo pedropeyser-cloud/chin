@@ -23,6 +23,17 @@ function hash(...partes) {
 const entre = ([a, b], u) => a + (b - a) * u;
 const tope = (p) => (p.length ? p[p.length - 1] : null);
 
+/** Cuántos ms después de aparecer la pareja actual la cantaría el bot (para medir por cuánto le ganaron). */
+export function demoraChin(estado, jugador, dificultad = "rapido") {
+  const d = DIFICULTADES[dificultad] || DIFICULTADES.rapido;
+  const c = estado.coincidencia;
+  if (!c) return null;
+  const clave = [estado.semilla, jugador, dificultad];
+  const distraido = hash(...clave, "ve", c.id) < d.distraido;
+  const base = entre(d.reaccion, hash(...clave, "rx", c.id));
+  return distraido ? base * 2.6 + 700 : base;
+}
+
 /**
  * Qué hace el bot `jugador` en `ahora`: una acción válida o `null` si todavía no le toca.
  * `estado` es el estado completo (la pantalla del bot vive en el anfitrión).
@@ -35,12 +46,7 @@ export function bot(estado, jugador, ahora, dificultad = "rapido") {
 
   // 1) CHIN: cuando pasó su tiempo de reacción desde que la pareja apareció (salvo que no la haya visto)
   const c = s.coincidencia;
-  if (c) {
-    const distraido = hash(...clave, "ve", c.id) < d.distraido;
-    const base = entre(d.reaccion, hash(...clave, "rx", c.id));
-    const demora = distraido ? base * 2.6 + 700 : base;
-    return ahora - c.t >= demora ? { t: "chin", visto: c.id } : null;
-  }
+  if (c) return ahora - c.t >= demoraChin(s, jugador, dificultad) ? { t: "chin", visto: c.id } : null;
   if (s.finPendiente) return null;
 
   // trabados: toca su mazo marcado después de darse cuenta

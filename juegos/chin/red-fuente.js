@@ -85,6 +85,7 @@ export function eventosLimpios(ev) {
       case "revancha": out.push({ t: "revancha" }); break;
       case "quiere_revancha": out.push({ t: "quiere_revancha", jugador: lado(e.jugador) }); break;
       case "no_revancha": out.push({ t: "no_revancha", jugador: lado(e.jugador) }); break;
+      case "carrera": out.push({ t: "carrera", ganador: lado(e.ganador), margen: Math.max(0, Math.min(5000, num(e.margen))) }); break;
       default:
     }
   }
@@ -106,7 +107,8 @@ function base() {
  * Anfitrión. `yo` = { nombre, estilo, id }. Devuelve { codigo, link, fuente, alEntrar(fn), empezar(), cerrar() }.
  * La partida no existe hasta `empezar()` (cuando entró el invitado).
  */
-export function crearAnfitrion(yo, { cuenta = 3000 } = {}) {
+export function crearAnfitrion(yo, { cuenta = 3000, formato = 1 } = {}) {
+  const fmt = formato === 3 ? 3 : 1;
   const b = base();
   const codigo = codigoNuevo();
   let estado = null, conectado = false, owd = 0, timer = null, abierta = false;
@@ -117,13 +119,17 @@ export function crearAnfitrion(yo, { cuenta = 3000 } = {}) {
   let ultimoPing = 0, cortadoAviso = false;
 
   const jug = () => [{ nombre: limpiarNombre(yo.nombre), estilo: limpiarEstilo(yo.estilo), id: idOk(yo.id) }, { ...rival }];
-  const mandar = (ev) => sala.enviar({ t: "vista", v: vista(estado, 1), ev, jug: jug(), th: ahora() });
+  const mandar = (ev) => sala.enviar({ t: "vista", v: vista(estado, 1), ev, jug: jug(), th: ahora(), fmt });
   const emitir = (ev) => { b.subs.forEach((f) => f(vista(estado, 0), ev)); if (conectado) mandar(ev); };
 
   function aplicarReal(j, accion) {
     try {
       const r = aplicar(estado, j, accion, ahora());
-      if (r.rechazo) return r.rechazo;
+      if (r.rechazo) {
+        // llegó tarde a un CHIN: los dos ven por cuánto fue la carrera
+        if (r.rechazo.tarde !== undefined && r.rechazo.tarde <= 1500) emitir([{ t: "carrera", ganador: 1 - j, margen: r.rechazo.tarde }]);
+        return { motivo: r.rechazo.motivo, mensaje: r.rechazo.mensaje };
+      }
       estado = r.estado;
       emitir(r.eventos);
     } catch { /* acción que no corresponde: se ignora */ }
@@ -177,7 +183,7 @@ export function crearAnfitrion(yo, { cuenta = 3000 } = {}) {
   });
 
   const fuente = {
-    yo: 0, esLocal: false, esAnfitrion: true, ahora,
+    yo: 0, esLocal: false, esAnfitrion: true, ahora, formato: fmt,
     get nombres() { return estado ? estado.nombres : [limpiarNombre(yo.nombre), rival.nombre]; },
     vista: () => vista(estado, 0),
     jugadores: jug,
@@ -226,7 +232,7 @@ export function crearAnfitrion(yo, { cuenta = 3000 } = {}) {
 /** Invitado. Devuelve { fuente, alListo(fn), alError(fn) }. `alListo` avisa cuando llegó la primera vista. */
 export function entrarComoInvitado(codigo, yo) {
   const b = base();
-  let v = null, offset = 0, rtt = 0, n = 0, jug = [{ nombre: "Anfitrión", estilo: {}, id: null }, { nombre: limpiarNombre(yo.nombre), estilo: limpiarEstilo(yo.estilo), id: idOk(yo.id) }];
+  let v = null, offset = 0, rtt = 0, n = 0, formato = 1, jug = [{ nombre: "Anfitrión", estilo: {}, id: null }, { nombre: limpiarNombre(yo.nombre), estilo: limpiarEstilo(yo.estilo), id: idOk(yo.id) }];
   const pend = new Map();
   let ultimoPong = 0, cortadoAviso = false, vigia = null;
   let pingT = null, listo = null, error = null, nombres = [jug[0].nombre, jug[1].nombre];
@@ -252,6 +258,7 @@ export function entrarComoInvitado(codigo, yo) {
         case "vista":
           if (!m.v || typeof m.v !== "object") return;
           v = vistaLimpia(m.v);
+          formato = m.fmt === 3 ? 3 : 1;
           if (Array.isArray(m.jug) && m.jug.length === 2) {
             jug = m.jug.map((x) => ({ nombre: limpiarNombre(x.nombre), estilo: limpiarEstilo(x.estilo), id: idOk(x.id) }));
             nombres = jug.map((x) => x.nombre);
@@ -284,6 +291,7 @@ export function entrarComoInvitado(codigo, yo) {
 
   const fuente = {
     yo: 1, esLocal: false, esAnfitrion: false,
+    get formato() { return formato; },
     ahora: () => ahora() + offset,
     get nombres() { return nombres; },
     vista: () => v,

@@ -62,10 +62,11 @@ async function arrancar() {
     const j = juegoPorId(params.get("juego") || "chin");
     if (j?.abrir) { juegoAbierto = await j.abrir(); juegoAbierto.entrar(app, sala, ctx); return; }
   }
-  // pruebas en el navegador: ?auto=1 salta el lobby y juega contra el bot (&dif=tranquilo|rapido|implacable)
+  // pruebas en el navegador: ?auto=1 salta el lobby y juega contra el bot (&dif=tranquilo|rapido|implacable);
+  // el tutorial de la primera vez solo aparece con &tutorial=1
   if (params.get("auto")) {
     juegoAbierto = await juegoPorId("chin").abrir();
-    juegoAbierto.contraBot(app, { ...ctx, yo: () => yo(false) }, params.get("dif"));
+    juegoAbierto.contraBot(app, { ...ctx, yo: () => yo(false) }, params.get("dif"), { tutorial: params.get("tutorial") === "1" });
     return;
   }
   inicio(params.get("tab") || "jugar");

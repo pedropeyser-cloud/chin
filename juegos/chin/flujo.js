@@ -4,15 +4,19 @@ import { chin } from "./index.js";
 import { crearAnfitrion, entrarComoInvitado } from "./red-fuente.js";
 import { sonido } from "../../nucleo/sonido.js";
 import { pedirPantallaCompleta } from "./mesa.js";
+import { PERSONAJES } from "./personajes.js";
+import { montarTutorial, visto as tutorialVisto } from "./tutorial.js";
+import * as D from "./desafio.js";
+import * as nube from "../../nucleo/nube.js";
 
 const DIFS = [
-  { k: "tranquilo", n: "Tranquilo", d: "te da tiempo" },
-  { k: "rapido", n: "Rápido", d: "no se duerme" },
-  { k: "implacable", n: "Implacable", d: "casi no falla" },
-];
+  { k: "tranquilo", n: "tranquilo" },
+  { k: "rapido", n: "rápido" },
+  { k: "implacable", n: "implacable" },
+].map((d) => ({ ...d, p: PERSONAJES[d.k] }));
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-let dificultad = "rapido";
-try { dificultad = localStorage.getItem("chin.dif") || dificultad; } catch { /* ok */ }
+let dificultad = "rapido", formato = 1;
+try { dificultad = localStorage.getItem("chin.dif") || dificultad; formato = localStorage.getItem("chin.formato") === "3" ? 3 : 1; } catch { /* ok */ }
 
 let baja = null;
 export function cerrar() { if (baja) { baja(); baja = null; } }
@@ -24,13 +28,26 @@ export function menu(app, ctx) {
       <h1 class="sello">CHIN</h1>
       <p class="lema">Dos pilas, dos mazos, un solo grito. Gana el que más rápido canta.</p>
       <div class="grupo">
+        <span class="etiqueta">cómo se juega la partida</span>
+        <div class="formatos" role="group" aria-label="Formato">
+          <button class="fmt" data-f="1" aria-pressed="${formato === 1}"><b>Partida</b><small>una sola</small></button>
+          <button class="fmt" data-f="3" aria-pressed="${formato === 3}"><b>Al mejor de 3</b><small>gana el que llega a 2</small></button>
+        </div>
+      </div>
+      <div class="grupo">
         <span class="etiqueta">contra el bot</span>
-        <div class="dificultades">${DIFS.map((d) => `<button class="dif" data-k="${d.k}" aria-pressed="${d.k === dificultad}"><b>${d.n}</b><small>${d.d}</small></button>`).join("")}</div>
+        <div class="dificultades">${DIFS.map((d) => `<button class="dif" data-k="${d.k}" aria-pressed="${d.k === dificultad}"><b>${d.p.nombre}</b><small>${d.p.lema}</small></button>`).join("")}</div>
         <button class="boton primario jugar">Jugar contra el bot</button>
       </div>
       <div class="grupo">
         <span class="etiqueta">con un amigo (queda en el historial si los dos tienen usuario)</span>
         <button class="boton amigo">Invitar a un amigo por link</button>
+      </div>
+      <div class="grupo desafio">
+        <span class="etiqueta">desafío del día · ${D.fechaLinda(D.diaDeHoy())}</span>
+        <p class="desafio-lema">El mismo reparto para todos contra ${PERSONAJES[D.BOT_DESAFIO].nombre}. Gana el más rápido; para la tabla cuenta tu primer intento y hace falta cuenta.</p>
+        <button class="boton desafio-jugar">Jugar el desafío</button>
+        <details class="desafio-tabla"><summary>Ver la tabla de hoy</summary><div class="desafio-filas">Cargando…</div></details>
       </div>
       <details class="reglas"><summary>Cómo se juega</summary><ul>
         <li>Cada uno arranca con su mazo de 48 boca abajo y el centro vacío. Arrastrá 5 cartas del mazo a tu fila y, con la fila completa, una del mazo a tu pila del centro. Cuando las dos pilas tienen carta, se juega.</li>
@@ -40,8 +57,25 @@ export function menu(app, ctx) {
         <li>Para ordenar tu fila, arrastrá una carta sobre otra y cambian de lugar (si son del mismo número, se apilan).</li>
         <li>La rapidez de la mano cuenta: todo se arrastra. En la compu se juega en pantalla completa y espacio = CHIN.</li>
       </ul></details>
+      <button class="boton suave ver-tutorial">Ver el tutorial (40 s)</button>
       <button class="boton suave volver">← Volver al inicio</button>
     </main>`;
+  app.querySelectorAll(".fmt").forEach((b) => b.addEventListener("click", () => {
+    formato = Number(b.dataset.f) === 3 ? 3 : 1;
+    try { localStorage.setItem("chin.formato", String(formato)); } catch { /* ok */ }
+    app.querySelectorAll(".fmt").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  }));
+  app.querySelector(".desafio-jugar").addEventListener("click", () => desafio(app, ctx));
+  const tabla = app.querySelector(".desafio-tabla");
+  tabla.addEventListener("toggle", async () => {
+    if (!tabla.open) return;
+    const caja = tabla.querySelector(".desafio-filas");
+    try {
+      const filas = await nube.tablaDesafio(D.diaDeHoy());
+      caja.innerHTML = filas === null ? "La tabla necesita conexión con la base." : D.tablaHTML(filas, nube.miPerfil()?.usuario);
+    } catch { caja.textContent = "No pude traer la tabla. Probá de nuevo."; }
+  });
+  app.querySelector(".ver-tutorial").addEventListener("click", () => tutorial(app, ctx, () => menu(app, ctx)));
   app.querySelectorAll(".dif").forEach((b) => b.addEventListener("click", () => {
     dificultad = b.dataset.k;
     try { localStorage.setItem("chin.dif", dificultad); } catch { /* ok */ }
@@ -52,20 +86,48 @@ export function menu(app, ctx) {
   app.querySelector(".volver").addEventListener("click", () => ctx.volver());
 }
 
-export function contraBot(app, ctx, dif) {
+/** Tutorial sobre la mesa; al terminar (o saltearlo) sigue con `despues`. */
+export function tutorial(app, ctx, despues) {
+  sonido.despertar();
+  cerrar();
+  const p = ctx.yo();
+  baja = montarTutorial(app, { nombre: p.nombre, estilo: p.estilo, alTerminar: () => { baja = null; despues(); } });
+}
+
+/** `opciones.tutorial = false` saltea el tutorial de la primera vez (las pruebas con ?auto=1 lo usan). */
+export function contraBot(app, ctx, dif, { tutorial: conTutorial = true } = {}) {
   if (dif && DIFS.some((d) => d.k === dif)) dificultad = dif;
   sonido.despertar();
   pedirPantallaCompleta();
+  // la primera partida arranca con el tutorial (una sola vez)
+  if (conTutorial && !tutorialVisto()) { tutorial(app, ctx, () => contraBot(app, ctx, dificultad, { tutorial: false })); return; }
   cerrar();
   const p = ctx.yo();
-  baja = chin.montar(app, { dificultad, nombre: p.nombre, estilo: p.estilo, salir: ctx.volver, otraDificultad: () => menu(app, ctx), alCrear: (f) => { window.__fuente = f; } });
+  baja = chin.montar(app, { dificultad, formato, nombre: p.nombre, estilo: p.estilo, salir: ctx.volver, otraDificultad: () => menu(app, ctx), alCrear: (f) => { window.__fuente = f; } });
+}
+
+/** Desafío del día: el reparto de hoy contra Rata. Las revanchas que siguen son partidas comunes. */
+async function desafio(app, ctx) {
+  sonido.despertar();
+  pedirPantallaCompleta();
+  cerrar();
+  const dia = D.diaDeHoy();
+  app.innerHTML = `<main class="inicio sala"><h1 class="sello chico">CHIN</h1><p class="lema">Preparando el desafío del día…</p></main>`;
+  const modo = await D.empezar(dia);
+  const p = ctx.yo();
+  let primera = true;
+  baja = chin.montar(app, {
+    dificultad: D.BOT_DESAFIO, formato: 1, semilla: D.semillaDe(dia), nombre: p.nombre, estilo: p.estilo, salir: ctx.volver,
+    pieFin: (el, v, datos) => { if (!primera) return; primera = false; D.pie(el, datos, modo, dia); },
+    alCrear: (f) => { window.__fuente = f; },
+  });
 }
 
 function invitar(app, ctx) {
   sonido.despertar();
   pedirPantallaCompleta();
   cerrar();
-  const a = crearAnfitrion(ctx.yo());
+  const a = crearAnfitrion(ctx.yo(), { formato });
   baja = () => a.cerrar();
   app.innerHTML = `
     <main class="inicio sala">

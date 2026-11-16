@@ -113,7 +113,7 @@ export function nuevaPartida({ nombres = ["Jugador 1", "Jugador 2"], semilla, ah
     mazos: [[], []], mano: [Array(MANO).fill(null), Array(MANO).fill(null)], pilas: [[], []],
     debajo: [Array.from({ length: MANO }, () => []), Array.from({ length: MANO }, () => [])],
     coincidencia: null,   // { id, t, cartas } mientras las dos de arriba tienen el mismo número; id = seq en que se formó
-    cerro: null,          // por qué dejó de haber coincidencia: { id, por, como: "movio"|"chin" }
+    cerro: null,          // por qué dejó de haber coincidencia: { id, por, como: "movio"|"chin", t? (cuándo se cantó) }
     finPendiente: null,   // { jugador, hasta }: se quedó sin cartas pero dejó CHIN en la mesa
     trabado: null,        // { desde, listos: [bool, bool] }: nadie puede tirar ni reponer; cuando los dos tocan el mazo, va una de cada uno
     ultimaT: [ahora, ahora], jugadas: [0, 0],
@@ -263,7 +263,8 @@ export function aplicar(estado, jugador, accion, ahora = 0) {
   if (!accion || typeof accion.t !== "string") throw new Error("acción inválida");
   if (jugador !== 0 && jugador !== 1) throw new Error(`jugador inválido: ${jugador}`);
   if (estado.fase !== "jugando") return rechazo(estado, "fin");
-  if (ahora < estado.arranca) return rechazo(estado, "no_arranco");
+  // un CHIN que llega tarde durante la pausa de la ronda nueva igual tiene que explicar qué pasó (y por cuánto)
+  if (ahora < estado.arranca && !(accion.t === "chin" && estado.cerro?.como === "chin")) return rechazo(estado, "no_arranco");
 
   if (accion.t === "poner") {
     const i = accion.carta, p = accion.pila;
@@ -386,7 +387,13 @@ export function aplicar(estado, jugador, accion, ahora = 0) {
     if (!c) {
       const cerro = estado.cerro;
       if (visto !== null && cerro && cerro.id === visto) {
-        if (cerro.como === "chin") return rechazo(estado, cerro.por === jugador ? "no_coincide" : "rival_chin");
+        if (cerro.como === "chin") {
+          if (cerro.por === jugador) return rechazo(estado, "no_coincide");
+          // llegó tarde a la carrera: `tarde` = ms después del CHIN del rival (para «la carrera más ajustada»)
+          const r = rechazo(estado, "rival_chin");
+          if (Number.isFinite(cerro.t)) r.rechazo.tarde = Math.max(0, ahora - cerro.t);
+          return r;
+        }
         return rechazo(estado, cerro.por === jugador ? "moviste_vos" : "rival_movio");
       }
       return rechazo(estado, visto !== null ? "rival_movio" : "no_coincide");
@@ -403,7 +410,7 @@ export function aplicar(estado, jugador, accion, ahora = 0) {
     s.pilas = [[], []];
     s.coincidencia = null;
     s.finPendiente = null;
-    s.cerro = { id: c.id, por: jugador, como: "chin" };
+    s.cerro = { id: c.id, por: jugador, como: "chin", t: ahora };
     s.chins[jugador]++;
     s.llevadas[perdedor] += llevadas.length;
     s.jugadas[jugador]++;
@@ -416,7 +423,7 @@ export function aplicar(estado, jugador, accion, ahora = 0) {
     if (sinCartas(s, jugador)) { terminar(s, jugador, ev); return { estado: s, eventos: ev }; }
     iniciarRonda(s, ahora, s.pausaRonda, ev);
     // iniciarRonda limpia `cerro`: lo dejamos apuntando a este CHIN para explicarle al que llegó tarde
-    if (!s.coincidencia) s.cerro = { id: c.id, por: jugador, como: "chin" };
+    if (!s.coincidencia) s.cerro = { id: c.id, por: jugador, como: "chin", t: ahora };
     return { estado: s, eventos: ev };
   }
 

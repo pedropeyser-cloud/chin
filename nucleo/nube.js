@@ -104,6 +104,34 @@ export async function misPartidasJuego(limite = 30) {
   return data || [];
 }
 
+// ---------- desafío del día de CHIN ----------
+// Mismo reparto para todos contra el bot Rata. Jugarlo es libre; para la tabla hace falta cuenta y cuenta solo el
+// primer intento del día (la base lo anota al empezar). `dia` = fecha de Argentina "AAAA-MM-DD".
+/** Anota que empezó el desafío de hoy. Devuelve "ok" (cuenta para la tabla) o "ya" (ya lo jugó: es de práctica). */
+export async function empezarDesafio(dia) {
+  if (!perfil) return null;
+  if (window.__NUBE_FALSA?.empezarDesafio) return window.__NUBE_FALSA.empezarDesafio(dia);
+  const { data, error } = await cli.rpc("empezar_desafio_chin", { p_dia: dia });
+  if (error) throw new Error(error.message);
+  return data;
+}
+/** Cierra el intento de hoy. Devuelve el puesto si ganó (o null). */
+export async function terminarDesafio(dia, ms, gano) {
+  if (!perfil) return null;
+  if (window.__NUBE_FALSA?.terminarDesafio) return window.__NUBE_FALSA.terminarDesafio(dia, ms, gano);
+  const { data, error } = await cli.rpc("terminar_desafio_chin", { p_dia: dia, p_ms: Math.round(ms), p_gano: !!gano });
+  if (error) throw new Error(error.message);
+  return data;
+}
+/** La tabla del día: [{ usuario, ms }] del más rápido al más lento (la ve cualquiera, sin cuenta). */
+export async function tablaDesafio(dia) {
+  if (window.__NUBE_FALSA) return window.__NUBE_FALSA.tablaDesafio?.(dia) || [];
+  if (!cli) return null;
+  const { data, error } = await cli.rpc("tabla_desafio_chin", { p_dia: dia });
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
 /** Borra la cuenta y todo lo suyo (perfil, gloria, historial). No tiene vuelta atrás. Es la misma función del truco. */
 export async function borrarMiCuenta() {
   if (window.__NUBE_FALSA) { perfil = null; emitir("sesion", { usuario: null, perfil: null }); return; }

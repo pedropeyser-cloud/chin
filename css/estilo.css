@@ -52,3 +52,22 @@ button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulat
 
 .inicio .sello.chico { font-size: clamp(64px, 18vw, 96px); }
 .inicio .link { width: 100%; background: var(--superficie); color: var(--papel); border: 1px solid var(--linea); border-radius: 12px; padding: 12px; font-family: Plex; font-size: 12.5px; user-select: text; -webkit-user-select: text; }
+
+/* 2026-11-16: formato de la partida y desafío del día en el menú de CHIN */
+.inicio .formatos { display: flex; gap: 8px; width: 100%; }
+.inicio .fmt { flex: 1; min-height: 56px; padding: 8px 6px; border-radius: 16px; border: 1px solid var(--linea); background: var(--superficie); display: flex; flex-direction: column; gap: 2px; align-items: center; justify-content: center; }
+.inicio .fmt b { font-size: 16px; }
+.inicio .fmt small { font-family: Plex; font-size: 10.5px; color: var(--gris); }
+.inicio .fmt[aria-pressed=true] { border-color: var(--ambar); background: rgba(240,169,59,.1); }
+.inicio .fmt[aria-pressed=true] b { color: var(--ambar); }
+.inicio .desafio-lema { font-size: 14px; color: var(--texto-suave); text-align: center; }
+.inicio .desafio-tabla { width: 100%; text-align: left; }
+.inicio .desafio-tabla summary { cursor: pointer; font-family: Plex; font-size: 12px; color: var(--gris); padding: 6px 0; }
+.inicio .desafio-filas { font-size: 14px; color: var(--texto-suave); }
+.tabla-dia { list-style: none; padding: 0; margin: 4px 0 0; display: grid; gap: 2px; width: 100%; }
+.tabla-dia li { display: grid; grid-template-columns: 26px 1fr auto; align-items: baseline; gap: 8px; padding: 3px 8px; border-radius: 8px; }
+.tabla-dia li.yo { background: rgba(240,169,59,.14); }
+.tabla-dia .puesto { font-family: Plex; font-size: 12px; color: var(--gris); }
+.tabla-dia .quien { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tabla-dia b { font-family: Plex; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--papel); }
+.tabla-vacia { font-size: 14px; color: var(--texto-suave); }

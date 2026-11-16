@@ -16,6 +16,13 @@ const dur = (ms) => (QUIETO ? Math.min(ms, 60) : ms);
 const el = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));  // los nombres pueden venir de la red
 const centro = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+/** Vibración corta del celular (si el aparato no vibra o no deja, no pasa nada). */
+const vibrar = (p) => { try { navigator.vibrate?.(p); } catch { /* ok */ } };
+const CLAVE_MARCA = "chin.marca";
+const leerMarca = () => { try { const n = Number(localStorage.getItem(CLAVE_MARCA)); return n > 0 ? n : null; } catch { return null; } };
+const guardarMarca = (ms) => { try { localStorage.setItem(CLAVE_MARCA, String(Math.round(ms))); } catch { /* ok */ } };
+const minSeg = (ms) => { const t = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(t / 60)}'${String(t % 60).padStart(2, "0")}"`; };
+const media = (a) => (a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : null);
 
 const SOL = (() => {
   let rayos = "";
@@ -50,7 +57,7 @@ function tween(nodo, desde, hasta, ms) {
  * @param {{fuente: object, formaCara?: [number, number], salir: () => void, otraDificultad?: () => void}} o
  * @returns {() => void} desmontar
  */
-export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
+export function montarMesa(cont, { fuente, salir, otraDificultad, alFin, pieFin }) {
   const yo = fuente.yo, rv = 1 - yo;
   const nombres = fuente.vista().nombres;
   const jug = fuente.jugadores();
@@ -61,7 +68,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   <div class="mesa" data-estado="espera">
     <header class="franja arriba">
       <div class="cara-slot rival-cara"><span class="burbuja rival-burbuja"></span></div>
-      <div class="quien"><span class="n-rival"></span><small class="sub-rival">rival</small></div>
+      <div class="quien"><span class="n-rival"></span><button type="button" class="red-punto" hidden aria-label="Conexión"></button><small class="sub-rival">rival</small></div>
       <div class="mazo rival-mazo" title="Cartas que le quedan al rival"></div>
       <button class="icono emote-btn" aria-label="Reacciones">💬</button>
       <button class="icono pantalla-btn" aria-label="Pantalla completa" title="Pantalla completa" hidden>⛶</button>
@@ -75,7 +82,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
       <div class="pila" data-pila="1" role="button" aria-label="Pila derecha"><div class="hueco"></div></div>
       <div class="grito" aria-live="assertive"></div>
       <div class="aviso" aria-live="polite"></div>
-      <aside class="marcador" hidden aria-label="Marcador de la serie"><small>serie</small><b class="m-rival">0</b><i>–</i><b class="m-yo">0</b></aside>
+      <aside class="marcador" hidden aria-label="Marcador de la serie"><small class="m-tit">serie</small><b class="m-rival">0</b><i>–</i><b class="m-yo">0</b><small class="m-sub"></small></aside>
     </div>
     <div class="mano-fila mia-fila" aria-label="Tus cartas"></div>
     <header class="franja abajo">
@@ -95,8 +102,8 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   const filas = [yo === 0 ? $(".mia-fila") : $(".rival-fila"), yo === 0 ? $(".rival-fila") : $(".mia-fila")];
   filas.forEach((f, j) => {
     f.innerHTML = Array.from({ length: MANO }, (_, i) => j === yo
-      ? `<button type="button" class="mano-slot" data-i="${i}" aria-label="Carta ${i + 1}"></button>`
-      : `<div class="mano-slot mini" data-i="${i}"></div>`).join("");
+      ? `<button type="button" class="mano-slot vacio" data-i="${i}" aria-label="Lugar vacío"></button>`
+      : `<div class="mano-slot mini vacio" data-i="${i}"></div>`).join("");
   });
   const slots = filas.map((f) => [...f.querySelectorAll(".mano-slot")]);
   const mazoMio = mazos[yo];
@@ -158,13 +165,28 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   let yoQuiero = false, rivalQuiere = false, rivalNo = false;
   const serie = [0, 0];        // partidas ganadas por cada uno en esta mesa (se ve desde la primera revancha)
   let serieViva = false;
+  // al mejor de 3: el marcador se ve desde el principio y cuenta partidas hasta que uno llega a 2
+  const formato = fuente.formato === 3 ? 3 : 1;
+  const partido = [0, 0];
+  let partidaN = 1;
+  const decidido = () => formato === 3 && Math.max(partido[0], partido[1]) >= 2;
   const marcador = $(".marcador");
   function pintarMarcador() {
-    marcador.hidden = !serieViva;
-    marcador.querySelector(".m-yo").textContent = serie[yo];
-    marcador.querySelector(".m-rival").textContent = serie[rv];
-    marcador.setAttribute("aria-label", `Serie: vos ${serie[yo]}, ${nombres[rv]} ${serie[rv]}`);
+    const m = formato === 3 ? partido : serie;
+    marcador.hidden = formato === 1 && !serieViva;
+    marcador.classList.toggle("partido", formato === 3);
+    marcador.querySelector(".m-tit").textContent = formato === 3 ? "al mejor de 3" : "serie";
+    marcador.querySelector(".m-sub").textContent = formato === 3 ? (decidido() ? "terminado" : `partida ${partidaN}`) : "";
+    marcador.querySelector(".m-yo").textContent = m[yo];
+    marcador.querySelector(".m-rival").textContent = m[rv];
+    marcador.setAttribute("aria-label", `${formato === 3 ? "Partido al mejor de 3" : "Serie"}: vos ${m[yo]}, ${nombres[rv]} ${m[rv]}`);
   }
+  pintarMarcador();
+  // lo que se cuenta de cada partida para la pizarra del final
+  const E = { t0: null, tf: null, ponen: [0, 0], reac: [[], []], carreras: [] };
+  const reiniciarE = (arranca) => Object.assign(E, { t0: arranca, tf: null, ponen: [0, 0], reac: [[], []], carreras: [] });
+  reiniciarE(fuente.vista()?.arranca ?? fuente.ahora());
+  let cuentaFin = 0;
 
   function mostrarAviso(txt) {
     aviso.textContent = txt;
@@ -177,9 +199,11 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   }
 
   // ---------- acciones del jugador ----------
-  function enviar(accion) {
+  // `manejar(r)`: si devuelve true, la pantalla ya se ocupó (p. ej. la carta tiembla y vuelve, sin texto)
+  function enviar(accion, manejar) {
     sonido.despertar();
     const rechazar = (r) => {
+      if (manejar?.(r)) return;
       if (!r) return;
       sonido.play("rechazo");
       mostrarAviso(r.mensaje);
@@ -265,9 +289,15 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
         volverAlLugar(a); return;
       }
       soltado = { rect: a.fantasma.getBoundingClientRect(), t: performance.now() };
-      a.fantasma.remove();
-      a.origen.classList.remove("levantada");
-      enviar({ t: "poner", carta: a.i, pila: p });
+      // la carta queda donde la soltaste hasta saber si entra: si no va, tiembla y vuelve a su lugar (sin texto)
+      pendiente = a;
+      enviar({ t: "poner", carta: a.i, pila: p }, (r) => {
+        if (pendiente === a) pendiente = null;
+        if (r && r.motivo === "no_va") { sonido.play("rechazo"); temblar(a); return true; }
+        if (r) { volverAlLugar(a); return false; }
+        quitarFantasma(a);
+        return true;
+      });
       return;
     }
     // del mazo a una pila del centro: abrir la ronda (con la fila completa)
@@ -289,6 +319,15 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     enviar({ t: "reponer", carta: i });
   }
   function cancelar() { if (arrastre) { const a = arrastre; arrastre = null; volverAlLugar(a); } }
+  let pendiente = null;      // la carta soltada sobre una pila que espera respuesta
+  function quitarFantasma(a) { a.fantasma.remove(); a.origen.classList.remove("levantada"); }
+  function temblar(a) {
+    const f = a.fantasma, base = f.style.transform || "";
+    if (QUIETO || !f.isConnected) { volverAlLugar(a); return; }
+    const k = [0, -5, 5, -5, 5, 0].map((x) => ({ transform: `${base} translateX(${x}px)` }));
+    f.classList.add("tiembla");
+    f.animate(k, { duration: 180, easing: "linear" }).finished.then(() => volverAlLugar(a)).catch(() => volverAlLugar(a));
+  }
 
   slots[yo].forEach((n, i) => n.addEventListener("pointerdown", (e) => {
     e.preventDefault();
@@ -375,7 +414,8 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
         case "poner": {
           const mio = e.jugador === yo && soltado && performance.now() - soltado.t < 1500;
           llegadas[e.pila] = { de: mio ? soltado.rect : (slots[e.jugador][e.lugar] || mazos[e.jugador]).getBoundingClientRect(), girar: !mio };
-          if (e.jugador === yo) soltado = null;
+          if (e.jugador === yo) { soltado = null; vibrar(12); if (pendiente) { quitarFantasma(pendiente); pendiente = null; } }
+          E.ponen[e.jugador]++;
           sonido.play("poner");
           break;
         }
@@ -391,7 +431,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
         case "abrir": {
           const mio = e.jugador === yo && soltado && performance.now() - soltado.t < 1500;
           if (e.carta) llegadas[e.pila] = { de: mio ? soltado.rect : mazos[e.jugador].getBoundingClientRect(), girar: true };
-          if (e.jugador === yo) soltado = null;
+          if (e.jugador === yo) { soltado = null; if (e.carta) vibrar(12); }
           sonido.play("carta");
           break;
         }
@@ -412,6 +452,8 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
           break;
         case "chin": {
           const gane = e.jugador === yo;
+          if (gane) vibrar([30, 40, 30]);
+          E.reac[e.jugador].push(e.reaccion);
           sonido.voz(gane ? "chin" : "chin_rival", "chin");
           gritar(gane ? "¡CHIN!" : "¡Chin!", gane ? "mio" : "rival");
           sol.classList.add("estalla"); setTimeout(() => sol.classList.remove("estalla"), dur(500));
@@ -423,11 +465,17 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
           else mostrarAviso(`${nombres[e.jugador]} lo cantó en ${Math.round(e.reaccion)} ms`);
           break;
         }
+        case "carrera":
+          E.carreras.push(e);
+          break;
         case "fin":
           S.fin = true;
+          E.tf = fuente.ahora();
           serie[v.ganador]++;
+          if (formato === 3) partido[v.ganador]++;
           pintarMarcador();
-          try { alFin?.(v); } catch (err) { console.error(err); }
+          // al mejor de 3, al historial va el partido entero (cuando alguien llega a 2)
+          if (formato === 1 || decidido()) { try { alFin?.(v, { partido: [...partido], formato }); } catch (err) { console.error(err); } }
           setTimeout(() => mostrarFin(v), dur(cantaron ? 1100 : 600));
           break;
         case "quiere_revancha":
@@ -440,6 +488,9 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
           break;
         case "revancha":
           if (S.fin) serieViva = true;
+          if (formato === 3 && S.fin) { if (decidido()) { partido[0] = partido[1] = 0; partidaN = 1; } else partidaN++; }
+          clearInterval(cuentaFin);
+          reiniciarE(v.arranca);
           yoQuiero = false; rivalQuiere = false; rivalNo = false;
           pintarMarcador();
           fin.hidden = true; S.fin = false; S.tope = [null, null]; S.coincId = null; cancelar();
@@ -521,32 +572,91 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     const gane = v.ganador === yo;
     sonido.play(gane ? "gane" : "perdi");
     reaccionar(caras[v.ganador], "risa", 2500); reaccionar(caras[1 - v.ganador], "bronca", 2500);
-    const prom = reaccion.n ? Math.round(reaccion.suma / reaccion.n) : null;
+    const d = datosFin(v);
+    const enPartido = formato === 3 && !decidido();
+    const titulo = formato === 3
+      ? (enPartido ? (gane ? "Partida para vos" : `Partida para ${esc(nombres[rv])}`) : (gane ? "¡Ganaste el partido!" : `${esc(nombres[rv])} ganó el partido`))
+      : (gane ? "¡Ganaste!" : "Perdiste");
+    const sub = formato === 3
+      ? `${enPartido ? "Va" : "Terminó"} <b>${partido[yo]}</b> a <b>${partido[rv]}</b> · partida de ${minSeg(d.ms)}`
+      : `${gane ? `Te quedaste sin cartas antes que ${esc(nombres[rv])}` : `${esc(nombres[rv])} se quedó sin cartas primero`} · ${minSeg(d.ms)}`;
+    const fila = (n, a, b) => `<tr><th scope="row">${n}</th><td>${a ?? "—"}</td><td>${b ?? "—"}</td></tr>`;
+    const aj = d.ajustada;
     fin.innerHTML = `
-      <div class="fin-caja">
-        <p class="fin-titulo ${gane ? "gane" : "perdi"}">${gane ? "¡Ganaste!" : "Perdiste"}</p>
-        <p class="fin-sub">${gane ? `Te quedaste sin cartas antes que ${esc(nombres[rv])}.` : `${esc(nombres[rv])} se quedó sin cartas primero.`}</p>
-        <ul class="fin-datos">
-          <li><b>${Number(v.chins[yo]) || 0}</b> CHIN tuyos</li>
-          <li><b>${Number(v.chins[rv]) || 0}</b> de ${esc(nombres[rv])}</li>
-          ${prom !== null ? `<li>reaccionaste en <b>${prom} ms</b> en promedio</li>` : ""}
-        </ul>
-        ${serieViva ? `<p class="fin-serie">Serie: <b>${serie[yo]}</b> a <b>${serie[rv]}</b></p>` : ""}
+      <div class="fin-caja pizarra">
+        <p class="fin-titulo ${gane ? "gane" : "perdi"}">${titulo}</p>
+        <p class="fin-sub">${sub}</p>
+        <div class="fin-heroe">${d.mejor !== null
+          ? `<p class="fin-ms"><b>${d.mejor}</b><span>ms</span>${d.record ? `<em class="record">★ récord</em>` : ""}</p>
+             <p class="fin-ms-sub">tu CHIN más rápido${d.marca && !d.record ? ` · tu marca: ${d.marca} ms` : ""}</p>`
+          : `<p class="fin-ms vacio">—</p><p class="fin-ms-sub">no cantaste ningún CHIN esta vez${d.marca ? ` · tu marca: ${d.marca} ms` : ""}</p>`}</div>
+        <table class="fin-tabla">
+          <thead><tr><th></th><th scope="col">vos</th><th scope="col">${esc(nombres[rv])}</th></tr></thead>
+          <tbody>
+            ${fila("CHIN ganados", Number(v.chins[yo]) || 0, Number(v.chins[rv]) || 0)}
+            ${fila("reacción media", d.media[yo] !== null ? `${d.media[yo]} ms` : null, d.media[rv] !== null ? `${d.media[rv]} ms` : null)}
+            ${fila("cartas por minuto", d.cpm[yo], d.cpm[rv])}
+          </tbody>
+        </table>
+        ${aj ? `<p class="fin-ajustada">La carrera más ajustada: <b>${Math.round(aj.margen)} ms</b>, ${aj.ganador === yo ? "la ganaste vos" : `la ganó ${esc(nombres[rv])}`}.</p>` : ""}
+        ${formato === 1 && serieViva ? `<p class="fin-serie">Serie: <b>${serie[yo]}</b> a <b>${serie[rv]}</b></p>` : ""}
+        <div class="fin-extra"></div>
         <div class="fin-pedido" hidden></div>
         <div class="fin-botones">
           <button class="boton primario revancha" data-a="revancha">Revancha</button>
-          ${otraDificultad ? `<button class="boton" data-a="dificultad">Cambiar dificultad</button>` : ""}
+          ${otraDificultad && !enPartido ? `<button class="boton" data-a="dificultad">Cambiar dificultad</button>` : ""}
           <button class="boton suave" data-a="salir">Salir</button>
         </div>
       </div>`;
     fin.hidden = false;
+    try { pieFin?.(fin.querySelector(".fin-extra"), v, { ms: d.ms, gane }); } catch (err) { console.error(err); }
+    // dentro del partido, la siguiente arranca sola en unos segundos (o antes, si tocás)
+    clearInterval(cuentaFin);
+    if (enPartido) {
+      let k = 8;
+      fin.dataset.cuenta = k;
+      cuentaFin = setInterval(() => {
+        k--;
+        fin.dataset.cuenta = k;
+        pintarRevancha();
+        if (k <= 0) { clearInterval(cuentaFin); if (!yoQuiero) { yoQuiero = true; pintarRevancha(); fuente.revancha(); } }
+      }, 1000);
+    } else delete fin.dataset.cuenta;
     pintarRevancha();
     fin.querySelector('[data-a="revancha"]').focus();
+  }
+  /** Los números de la pizarra: reacción, cartas por minuto, la carrera más ajustada y la mejor marca guardada. */
+  function datosFin(v) {
+    const ms = Math.max(1000, (E.tf ?? fuente.ahora()) - (E.t0 ?? 0));
+    const mins = ms / 60000;
+    const mias = E.reac[yo];
+    const mejor = mias.length ? Math.round(Math.min(...mias)) : null;
+    const marca = leerMarca();
+    const record = mejor !== null && (marca === null || mejor < marca);
+    if (record) guardarMarca(mejor);
+    const ajustada = E.carreras.length ? E.carreras.reduce((a, b) => (b.margen < a.margen ? b : a)) : null;
+    return {
+      ms, mejor, marca, record, ajustada,
+      media: [media(E.reac[0]), media(E.reac[1])],
+      cpm: E.ponen.map((n) => Math.round(n / mins)),
+    };
   }
   function pintarRevancha() {
     const b = fin.querySelector(".revancha");
     if (!b) return;
     const pedido = fin.querySelector(".fin-pedido");
+    if (formato === 3 && !decidido()) {
+      // dentro del partido no hay aceptar/declinar: la siguiente partida arranca cuando están los dos
+      const k = Number(fin.dataset.cuenta);
+      pedido.hidden = !(rivalQuiere || yoQuiero || rivalNo);
+      pedido.innerHTML = rivalNo ? `<p><b>${esc(nombres[rv])}</b> dejó el partido.</p>`
+        : yoQuiero ? `<p>Esperando a <b>${esc(nombres[rv])}</b>…</p>`
+        : rivalQuiere ? `<p><b>${esc(nombres[rv])}</b> ya está listo para la siguiente.</p>` : "";
+      b.hidden = false;
+      b.disabled = yoQuiero || rivalNo;
+      b.textContent = yoQuiero ? "Esperando…" : `Siguiente partida${k > 0 ? ` (${k})` : ""}`;
+      return;
+    }
     // el rival pide la revancha: aceptar o declinar, bien a la vista
     if (rivalQuiere && !yoQuiero) {
       pedido.hidden = false;
@@ -608,11 +718,15 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   bandeja.addEventListener("change", (e) => { if (e.target.matches("input")) ponerMudo(e.target.checked); });
   const cerrarBandeja = (e) => { if (!bandeja.hidden && !e.target.closest(".emotes-bandeja, .emote-btn")) bandeja.hidden = true; };
   document.addEventListener("pointerdown", cerrarBandeja, true);
-  function burbuja(j, k) {
+  function globo(j, txt, dicho = false) {
     const b = $(j === yo ? ".mia-burbuja" : ".rival-burbuja");
-    b.textContent = textoDe(k);
+    b.textContent = txt;
+    b.classList.toggle("dicho", dicho);
     b.classList.remove("ver"); void b.offsetWidth; b.classList.add("ver");
-    clearTimeout(b._t); b._t = setTimeout(() => b.classList.remove("ver"), 2200);
+    clearTimeout(b._t); b._t = setTimeout(() => b.classList.remove("ver"), dicho ? 2600 : 2200);
+  }
+  function burbuja(j, k) {
+    globo(j, textoDe(k));
     if (k === "risa" || k === "bien" || k === "rapido") reaccionar(caras[j], "risa", 900);
     else if (k === "uy" || k === "dale") reaccionar(caras[j], "sorpresa", 900);
   }
@@ -621,8 +735,24 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   // ---------- conexión (solo en red) ----------
   const corte = $(".corte");
   const bajaC = fuente.suscribirConexion((estado) => { corte.hidden = estado === "conectado"; });
-  const subRival = $(".sub-rival");
-  const timerPing = fuente.esLocal ? 0 : setInterval(() => { subRival.textContent = `ping ${fuente.latencia()} ms`; }, 2000);
+  // puntito junto al rival: verde = buena (ida y vuelta de menos de 150 ms), ámbar que late = lenta
+  const punto = $(".red-punto");
+  const UMBRAL_LENTA = 150;
+  const idaVuelta = () => Math.round((fuente.latencia() || 0) * 2);
+  function pintarRed() {
+    const ms = idaVuelta(), lenta = ms >= UMBRAL_LENTA;
+    punto.hidden = false;
+    punto.dataset.q = lenta ? "lenta" : "buena";
+    const txt = `Conexión ${lenta ? "lenta" : "buena"} · ${ms} ms`;
+    punto.setAttribute("aria-label", txt); punto.title = txt;
+  }
+  if (!fuente.esLocal) {
+    pintarRed();
+    punto.addEventListener("click", () => { pintarRed(); mostrarAviso(punto.title); });
+  }
+  const timerPing = fuente.esLocal ? 0 : setInterval(pintarRed, 1000);
+  // lo que dice el bot (cada personaje tiene sus frases)
+  const bajaD = fuente.suscribirDicho ? fuente.suscribirDicho((txt, j) => globo(j, txt, true)) : () => {};
 
   const baja = fuente.suscribir((v, ev) => { eventos(v, ev); pintar(v); });
   pintar(fuente.vista());
@@ -630,7 +760,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   return () => {
     document.removeEventListener("fullscreenchange", alCambiarPantalla); quitarReintento();
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    baja(); bajaE(); bajaC(); clearInterval(timerPing); cancelAnimationFrame(raf); removeEventListener("keydown", teclas); document.removeEventListener("pointerdown", cerrarBandeja, true);
+    baja(); bajaE(); bajaC(); bajaD(); clearInterval(timerPing); clearInterval(cuentaFin); cancelAnimationFrame(raf); removeEventListener("keydown", teclas); document.removeEventListener("pointerdown", cerrarBandeja, true);
     cesar.forEach((f) => f && f()); cont.innerHTML = "";
   };
 }

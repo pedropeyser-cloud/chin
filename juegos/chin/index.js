@@ -9,11 +9,14 @@ export const chin = {
   bot,
   descripcion: "Escalera para arriba o para abajo en dos pilas. Mismo número arriba: CHIN.",
   estado: "listo",
-  /** ctx: { fuente?, dificultad?, salir, otraDificultad } — sin `fuente` juega contra el bot en este navegador. */
+  /**
+   * ctx: { fuente?, dificultad?, formato? (1|3), semilla? (desafío del día), salir, otraDificultad?, alFin?, pieFin? }
+   * Sin `fuente` juega contra el bot en este navegador.
+   */
   montar(contenedor, ctx = {}) {
-    const fuente = ctx.fuente || crearLocal({ dificultad: ctx.dificultad, nombre: ctx.nombre, estilo: ctx.estilo });
+    const fuente = ctx.fuente || crearLocal({ dificultad: ctx.dificultad, nombre: ctx.nombre, estilo: ctx.estilo, formato: ctx.formato, semilla: ctx.semilla });
     ctx.alCrear?.(fuente);
-    const desmontar = montarMesa(contenedor, { fuente, salir: ctx.salir, otraDificultad: ctx.otraDificultad, alFin: ctx.alFin });
+    const desmontar = montarMesa(contenedor, { fuente, salir: ctx.salir, otraDificultad: ctx.otraDificultad, alFin: ctx.alFin, pieFin: ctx.pieFin });
     return () => { desmontar(); fuente.destruir(); };
   },
 };
