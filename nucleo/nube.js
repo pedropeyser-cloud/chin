@@ -99,7 +99,7 @@ export async function confirmarPartidaJuego(id, ganador) {
 export async function misPartidasJuego(limite = 30) {
   if (!perfil) return [];
   if (window.__NUBE_FALSA?.misPartidasJuego) return window.__NUBE_FALSA.misPartidasJuego();
-  const { data } = await cli.from("partida_juego_jugadores").select("partida, lado, gano, gloria, partidas_juego!inner(juego, jugada, confirmada)")
+  const { data } = await cli.from("partida_juego_jugadores").select("partida, lado, gano, partidas_juego!inner(juego, jugada, confirmada)")
     .eq("jugador", perfil.id).eq("partidas_juego.confirmada", true).order("partida", { ascending: false }).limit(limite);
   return data || [];
 }

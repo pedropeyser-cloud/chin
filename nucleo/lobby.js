@@ -18,7 +18,7 @@ export function montarLobby(app, { abrirJuego, tab: tabInicial = "jugar" }) {
 
   function cabecera() {
     const p = nube.miPerfil();
-    if (!p) return `<header class="cab"><div class="cab-cara">${cara(0, "invitado")}</div><div class="cab-quien"><b>Invitado</b><small>sin usuario: no suma gloria</small></div></header>`;
+    if (!p) return `<header class="cab"><div class="cab-cara">${cara(0, "invitado")}</div><div class="cab-quien"><b>Invitado</b><small>sin usuario</small></div></header>`;
     return `<header class="cab"><div class="cab-cara">${cara(formaDe(p), "tu cara")}</div>
       <div class="cab-quien"><b>${esc(p.usuario)}</b><small>${gloriaDe(p)} de gloria</small></div></header>`;
   }
@@ -30,7 +30,7 @@ export function montarLobby(app, { abrirJuego, tab: tabInicial = "jugar" }) {
         <span class="t-desc">${esc(j.descripcion)}</span>
         <span class="t-pie">${j.jugadores[0] === j.jugadores[1] ? `${j.jugadores[0]} jugadores` : `${j.jugadores[0]} a ${j.jugadores[1]} jugadores`}${j.estado === "enlace" ? " · se abre en otra página" : ""}</span>
       </button>`).join("")}
-      <div class="tarjeta pronto"><span class="t-nombre">Más juegos</span><span class="t-desc">Cada juego nuevo entra a este mismo link, con tu mismo perfil y tu misma gloria.</span></div>
+      <div class="tarjeta pronto"><span class="t-nombre">Más juegos</span><span class="t-desc">Cada juego nuevo entra a este mismo link, con tu mismo usuario.</span></div>
     </section>`;
   }
 
@@ -45,7 +45,7 @@ export function montarLobby(app, { abrirJuego, tab: tabInicial = "jugar" }) {
     const p = nube.miPerfil(), e = p?.estilo || {}, g = gloriaDe(p), sig = proximo(g);
     return `<section class="pulperia">
       <p class="medidor"><b>${g}</b> de gloria${sig ? ` · te faltan ${sig.p - g} para ${esc(sig.nombre)}` : " · lo tenés todo"}</p>
-      ${p ? "" : `<p class="nota">Entrá con tu usuario (pestaña Vos) para ganar gloria y ponerte lo que desbloqueás.</p>`}
+      ${p ? "" : `<p class="nota">La gloria se gana jugando al truco. Entrá con tu usuario (pestaña Vos) para ponerte lo que desbloqueaste.</p>`}
       <h2>Tu cara</h2>
       <div class="caras">${CARAS.map((f) => `<button class="cara-op${formaDe(p, 0) === f && (e.cara === f || (!Number.isInteger(e.cara) && f === formaDe(p, 0))) ? " puesto" : ""}" data-tipo="cara" data-k="${f}" ${p ? "" : "aria-disabled=true"} aria-label="Cara ${f + 1}">${cara(f, "cara " + (f + 1))}</button>`).join("")}</div>
       <h2>Dorso de tus cartas</h2>
@@ -60,7 +60,7 @@ export function montarLobby(app, { abrirJuego, tab: tabInicial = "jugar" }) {
     if (!nube.activa()) return `<section class="vos"><p class="nota">Las cuentas todavía no están activadas en esta copia. Podés jugar igual contra el bot y con amigos por link.</p></section>`;
     if (!u) return `<section class="vos">
       <h2>Tu usuario</h2>
-      <p class="nota">Entrá con Google para tener tu usuario, sumar gloria y ponerte lo que desbloqueás. Es el mismo usuario y la misma gloria del truco.</p>
+      <p class="nota">Entrá con Google para tener tu usuario y ponerte lo que desbloqueaste con la gloria del truco. Es el mismo usuario del truco.</p>
       <button class="boton primario" data-accion="google">Entrar con Google</button>
       ${legal()}</section>`;
     if (!p) return `<section class="vos">
@@ -73,9 +73,9 @@ export function montarLobby(app, { abrirJuego, tab: tabInicial = "jugar" }) {
     return `<section class="vos">
       <div class="perfil-grande"><div class="cab-cara grande">${cara(formaDe(p), "tu cara")}</div>
         <div><b class="p-nombre">${esc(p.usuario)}</b><small>${gloriaDe(p)} de gloria${prox ? ` · próximo: ${esc(prox.nombre)} (${prox.p})` : ""}</small></div></div>
-      <p class="nota">Ganar suma 3 de gloria; perder por poco (con 10 cartas o menos), 1. Cuenta solo contra personas con usuario y cuando las dos confirman el resultado.</p>
+      <p class="nota">El CHIN no da gloria (la gloria es del truco). Las partidas con un amigo quedan en tu historial cuando los dos confirman el resultado.</p>
       <h2>Tus últimas partidas</h2>
-      ${partidas === null ? `<p class="nota">Cargando…</p>` : partidas.length ? `<ul class="historial">${partidas.map((x) => `<li class="${x.gano ? "gane" : "perdi"}"><b>${esc(x.partidas_juego?.juego || "")}</b> ${x.gano ? "ganaste" : "perdiste"} <em>+${x.gloria || 0}</em></li>`).join("")}</ul>` : `<p class="nota">Todavía no jugaste ninguna con un amigo.</p>`}
+      ${partidas === null ? `<p class="nota">Cargando…</p>` : partidas.length ? `<ul class="historial">${partidas.map((x) => `<li class="${x.gano ? "gane" : "perdi"}"><b>${esc(x.partidas_juego?.juego || "")}</b> ${x.gano ? "ganaste" : "perdiste"}</li>`).join("")}</ul>` : `<p class="nota">Todavía no jugaste ninguna con un amigo.</p>`}
       <div class="acciones">
         <button class="boton" data-accion="salir">Cerrar sesión</button>
         ${confirmarBorrado ? `<div class="borrar"><p class="nota">Esto borra tu usuario, tu gloria y tu historial, también en el truco. No se puede deshacer. Escribí tu usuario para confirmar:</p><input class="campo" id="confirmar" autocomplete="off" aria-label="Escribí tu usuario"><button class="boton peligro" data-accion="borrar-ok">Borrar mi cuenta</button><button class="boton suave" data-accion="borrar-no">No, volver</button></div>`

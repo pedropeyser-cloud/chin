@@ -2,7 +2,7 @@
 // Red primero: con conexión siempre se usa lo último publicado (y se guarda una copia); sin conexión, la copia.
 // Solo archivos de este mismo sitio. Supabase, la Edge Function del árbitro y PeerJS van siempre por la red, sin copia.
 // nube-config.js nunca se guarda (ni en la caja ni en la caché del navegador, por eso no-store): sin conexión se responde una configuración vacía y el juego arranca sin cuenta.
-const CAJA = "chin-v1";
+const CAJA = "chin-v3";
 const BASICO = ["./", "index.html", "manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {

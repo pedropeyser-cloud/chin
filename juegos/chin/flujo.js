@@ -3,6 +3,7 @@
 import { chin } from "./index.js";
 import { crearAnfitrion, entrarComoInvitado } from "./red-fuente.js";
 import { sonido } from "../../nucleo/sonido.js";
+import { pedirPantallaCompleta } from "./mesa.js";
 
 const DIFS = [
   { k: "tranquilo", n: "Tranquilo", d: "te da tiempo" },
@@ -23,20 +24,21 @@ export function menu(app, ctx) {
       <h1 class="sello">CHIN</h1>
       <p class="lema">Dos pilas, dos mazos, un solo grito. Gana el que más rápido canta.</p>
       <div class="grupo">
-        <span class="etiqueta">contra el bot (no suma gloria)</span>
+        <span class="etiqueta">contra el bot</span>
         <div class="dificultades">${DIFS.map((d) => `<button class="dif" data-k="${d.k}" aria-pressed="${d.k === dificultad}"><b>${d.n}</b><small>${d.d}</small></button>`).join("")}</div>
         <button class="boton primario jugar">Jugar contra el bot</button>
       </div>
       <div class="grupo">
-        <span class="etiqueta">con un amigo (suma gloria si los dos tienen usuario)</span>
+        <span class="etiqueta">con un amigo (queda en el historial si los dos tienen usuario)</span>
         <button class="boton amigo">Invitar a un amigo por link</button>
       </div>
       <details class="reglas"><summary>Cómo se juega</summary><ul>
-        <li>Cada uno tiene su mazo boca abajo y 5 cartas boca arriba en la mano. Al empezar, va una carta del mazo de cada uno a cada pila.</li>
+        <li>Cada uno arranca con su mazo de 48 boca abajo y el centro vacío. Arrastrá 5 cartas del mazo a tu fila y, con la fila completa, una del mazo a tu pila del centro. Cuando las dos pilas tienen carta, se juega.</li>
         <li>Sin turnos, arrastrás cartas de tu fila a cualquier pila si son la que sigue o la anterior: sobre un 12 va un 11 o un 1. Los huecos se llenan arrastrando del mazo a la fila.</li>
-        <li>Cuando arriba de las dos pilas queda el mismo número (el palo no importa), el sol se prende: tocalo para cantar CHIN. El otro se lleva las dos pilas y arranca otra ronda.</li>
+        <li>Cuando arriba de las dos pilas queda el mismo número (el palo no importa), el sol se prende: tocalo para cantar CHIN. El otro se lleva las dos pilas y arranca otra ronda: las filas se completan solas y va una de cada mazo a cada pila.</li>
         <li>Si nadie puede tirar, se marcan los mazos: cuando los dos tocan el suyo, va una de cada mazo a cada pila. Gana el primero que se queda sin cartas.</li>
-        <li>La rapidez de la mano cuenta: todo se arrastra. En la compu, espacio = CHIN.</li>
+        <li>Para ordenar tu fila, arrastrá una carta sobre otra y cambian de lugar (si son del mismo número, se apilan).</li>
+        <li>La rapidez de la mano cuenta: todo se arrastra. En la compu se juega en pantalla completa y espacio = CHIN.</li>
       </ul></details>
       <button class="boton suave volver">← Volver al inicio</button>
     </main>`;
@@ -53,6 +55,7 @@ export function menu(app, ctx) {
 export function contraBot(app, ctx, dif) {
   if (dif && DIFS.some((d) => d.k === dif)) dificultad = dif;
   sonido.despertar();
+  pedirPantallaCompleta();
   cerrar();
   const p = ctx.yo();
   baja = chin.montar(app, { dificultad, nombre: p.nombre, estilo: p.estilo, salir: ctx.volver, otraDificultad: () => menu(app, ctx), alCrear: (f) => { window.__fuente = f; } });
@@ -60,6 +63,7 @@ export function contraBot(app, ctx, dif) {
 
 function invitar(app, ctx) {
   sonido.despertar();
+  pedirPantallaCompleta();
   cerrar();
   const a = crearAnfitrion(ctx.yo());
   baja = () => a.cerrar();

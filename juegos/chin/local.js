@@ -61,6 +61,7 @@ export function crearLocal({ dificultad = "rapido", nombre = "Vos", estilo = {},
     pausarBot(v) { botPausado = !!v; },   // solo para pruebas
     _armar(e) { estado = e; emitir([{ t: "revancha" }]); },   // solo para pruebas: cambia el estado entero
     revancha() { nueva(); emitir([{ t: "revancha" }]); },
+    declinar() {},
     destruir() { clearInterval(timer); subs.clear(); subsE.clear(); },
   };
 }

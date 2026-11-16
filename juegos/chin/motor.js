@@ -4,7 +4,9 @@
 // en el orden en que le llegan y el que llega primero gana.
 //
 // Reglas (docs/chin/reglas.md): cada jugador tiene su mazo español de 48 boca abajo y una mano de 5 cartas boca arriba.
-// Al empezar cada ronda cada uno da vuelta una carta de su mazo en una de las dos pilas del centro. Sin turnos, cada uno
+// Al empezar la partida el centro está vacío: cada uno llena su fila desde el mazo y, con la fila completa, da vuelta
+// una carta de su mazo en su pila del centro («abrir»). Se tira recién cuando las dos pilas tienen carta. Después de cada
+// CHIN la ronda nueva arranca sola: se completan las filas y va una de cada mazo a cada pila. Sin turnos, cada uno
 // tira cartas de su mano sobre cualquier pila si su número es el siguiente o el anterior al de arriba (el 12 y el 1 se
 // tocan: sobre un 12 va un 11 o un 1) y repone a mano los huecos de su fila desde el mazo. Si las dos cartas de arriba
 // tienen el mismo número (el palo no importa) se canta CHIN: el otro se lleva las dos pilas y se arranca una ronda nueva.
@@ -29,6 +31,9 @@ export const MENSAJES = {
   otro_numero: "Solo se apilan cartas del mismo número.",
   pila_llena: "En un lugar entran como mucho 4 cartas iguales.",
   no_trabado: "Todavía hay jugadas: no hace falta dar vuelta del mazo.",
+  fila_incompleta: "Primero completá tus 5 cartas.",
+  sin_abrir: "Esperá a que las dos pilas tengan carta.",
+  ya_abriste: "Ya diste vuelta tu carta.",
   fin: "La partida terminó."
 };
 
@@ -95,14 +100,16 @@ const sinCartas = (s, j) => cartasDe(s, j) === 0;
  * `cuenta`: ms de cuenta regresiva antes de la primera ronda. `pausaRonda`: ms entre un CHIN y la ronda siguiente.
  * `ventanaFinal`: ms que el rival tiene para cantar CHIN si la última carta de alguien deja CHIN en la mesa.
  * `mazos`: solo para pruebas (mazos armados a mano, la primera carta es la de arriba).
+ * `reparteSolo`: solo para pruebas viejas: la fila se completa y la carta del centro se da vuelta sola en cada ronda.
  */
 export function nuevaPartida({ nombres = ["Jugador 1", "Jugador 2"], semilla, ahora = 0, cuenta = 3000, pausaRonda = 2000,
-  ventanaFinal = 1500, mazos } = {}) {
+  ventanaFinal = 1500, mazos, reparteSolo = false } = {}) {
   const sem = Number.isFinite(semilla) ? semilla >>> 0 : Math.floor(Math.random() * 4294967296);
   const s = {
     juego: "chin", semilla: sem, rng: sem, nombres: [...nombres],
     seq: 0, fase: "jugando", ganador: null, ronda: 0,
-    arranca: ahora + cuenta, pausaRonda, ventanaFinal,
+    arranca: ahora + cuenta, pausaRonda, ventanaFinal, reparteSolo: !!reparteSolo,
+    abrir: [false, false],  // [j] = todavía le falta dar vuelta su carta del centro en esta ronda
     mazos: [[], []], mano: [Array(MANO).fill(null), Array(MANO).fill(null)], pilas: [[], []],
     debajo: [Array.from({ length: MANO }, () => []), Array.from({ length: MANO }, () => [])],
     coincidencia: null,   // { id, t, cartas } mientras las dos de arriba tienen el mismo número; id = seq en que se formó
@@ -131,9 +138,32 @@ function cartaAlCentro(s, j) {
   return null;
 }
 
-/** Cada uno completa su mano a 5 y da vuelta una carta del mazo en una pila. Se juega desde `ahora + espera`. */
+/** ¿`j` ya llenó todos los huecos que puede llenar? (fila de 5, o sin mazo para seguir) */
+const filaLista = (s, j) => !s.mano[j].includes(null) || !s.mazos[j].length;
+const abriendo = (s) => s.abrir[0] || s.abrir[1];
+
+/** Carta que `j` abre: de su mazo, si no del rival; sin mazos, la primera de su fila. */
+function cartaDeApertura(s, j) {
+  const c = cartaAlCentro(s, j);
+  if (c !== null) return c;
+  const i = s.mano[j].findIndex(Boolean);
+  return i >= 0 ? sacarDeFila(s, j, i) : null;
+}
+
+/**
+ * Ronda nueva con el centro vacío: cada uno llena su fila desde el mazo y abre su pila a mano (acción «abrir»).
+ * Con `reparteSolo` (pruebas viejas) la fila se completa y el centro se abre solo. Se juega desde `ahora + espera`.
+ */
 function iniciarRonda(s, ahora, espera, ev) {
   s.ronda++;
+  if (!s.reparteSolo && s.ronda === 1) {
+    // solo la primera ronda se abre a mano; después de un CHIN la fila se completa y el centro se abre solo
+    s.abrir = [true, true];
+    s.arranca = ahora + espera;
+    s.coincidencia = null; s.cerro = null; s.trabado = null;
+    ev.push({ t: "ronda", n: s.ronda, cartas: [null, null], arranca: s.arranca });
+    return;
+  }
   rellenar(s, 0); rellenar(s, 1);
   const cartas = [cartaAlCentro(s, 0), cartaAlCentro(s, 1)];
   // sin mazos en ningún lado: cada uno pone la primera carta de su mano (pasa poco, pero la ronda tiene que arrancar)
@@ -155,8 +185,9 @@ export function acciones(s, j, ahora = Infinity) {
   if (s.fase !== "jugando" || ahora < s.arranca) return [];
   const out = [];
   if (!s.finPendiente) {
+    if (s.abrir[j] && filaLista(s, j)) out.push({ t: "abrir" });
     s.mano[j].forEach((c, i) => {
-      for (const p of [0, 1]) if (encaja(c, tope(s.pilas[p]))) out.push({ t: "poner", carta: i, pila: p });
+      if (!abriendo(s)) for (const p of [0, 1]) if (encaja(c, tope(s.pilas[p]))) out.push({ t: "poner", carta: i, pila: p });
       if (c === null && s.mazos[j].length) out.push({ t: "reponer", carta: i });
       s.mano[j].forEach((_, k) => { if (sePuedeJuntar(s, j, i, k)) out.push({ t: "juntar", desde: i, hacia: k }); });
     });
@@ -197,7 +228,7 @@ function actualizarCoincidencia(s, ahora, ev, jugador) {
 }
 
 function actualizarTrabado(s, ahora) {
-  if (s.fase !== "jugando" || s.coincidencia || s.finPendiente || hayJugada(s)) { s.trabado = null; return; }
+  if (s.fase !== "jugando" || abriendo(s) || s.coincidencia || s.finPendiente || hayJugada(s)) { s.trabado = null; return; }
   if (!s.trabado) s.trabado = { desde: Math.max(ahora, s.arranca), listos: [false, false] };
 }
 
@@ -223,7 +254,8 @@ function revisarFin(s, ahora, ev) {
 /**
  * Aplica una acción. No muta el estado recibido.
  * Acciones: { t: "poner", carta: 0..4 (lugar en la fila), pila: 0|1 } · { t: "reponer", carta: 0..4 } (una del mazo a ese hueco)
- * · { t: "juntar", desde, hacia } (apilo dos del mismo número en un lugar) · { t: "destrabar" } (toqué el mazo marcado) · { t: "chin", visto: id de la pareja que viste }.
+ * · { t: "juntar", desde, hacia } (apilo dos del mismo número en un lugar) · { t: "mover", desde, hacia } (cambio de lugar en mi fila)
+ * · { t: "abrir" } (con la fila llena, doy vuelta una del mazo en mi pila del centro) · { t: "destrabar" } (toqué el mazo marcado) · { t: "chin", visto: id de la pareja que viste }.
  * Devuelve { estado, eventos } o { estado, eventos: [], rechazo: { motivo, mensaje } } si la acción llegó tarde
  * o no corresponde (carrera perdida, carta que no va…). Tira Error solo ante acciones mal formadas.
  */
@@ -238,6 +270,7 @@ export function aplicar(estado, jugador, accion, ahora = 0) {
     if (!Number.isInteger(i) || i < 0 || i >= MANO) throw new Error("lugar de la mano inválido");
     if (p !== 0 && p !== 1) throw new Error("pila inválida");
     if (estado.finPendiente) return rechazo(estado, "fin");
+    if (abriendo(estado)) return rechazo(estado, "sin_abrir");
     const carta = estado.mano[jugador][i];
     if (!carta) return rechazo(estado, "sin_carta");
     if (!encaja(carta, tope(estado.pilas[p]))) return rechazo(estado, "no_va");
@@ -294,6 +327,43 @@ export function aplicar(estado, jugador, accion, ahora = 0) {
     s.jugadas[jugador]++;
     s.ultimaT[jugador] = ahora;
     actualizarTrabado(s, ahora);
+    s.ultimo = ev[0];
+    return { estado: s, eventos: ev };
+  }
+
+  if (accion.t === "abrir") {
+    if (!estado.abrir[jugador]) return rechazo(estado, "ya_abriste");
+    if (!filaLista(estado, jugador)) return rechazo(estado, "fila_incompleta");
+    const s = structuredClone(estado);
+    const ev = [];
+    s.seq++;
+    s.abrir[jugador] = false;
+    const carta = cartaDeApertura(s, jugador);
+    if (carta !== null) s.pilas[jugador].push(carta);
+    ev.push({ t: "abrir", jugador, carta, pila: jugador });
+    s.jugadas[jugador]++;
+    s.ultimaT[jugador] = ahora;
+    if (!abriendo(s)) {
+      // las dos pilas tienen carta: arranca el juego de la ronda (puede haber CHIN de entrada)
+      s.arranca = Math.max(s.arranca, ahora);
+      actualizarCoincidencia(s, ahora, ev, null);
+    }
+    revisarFin(s, ahora, ev);
+    actualizarTrabado(s, ahora);
+    s.ultimo = ev[ev.length - 1];
+    return { estado: s, eventos: ev };
+  }
+
+  if (accion.t === "mover") {
+    // cambia de lugar dos cartas de la propia fila (o mueve una a un hueco), para ordenarla; no cuenta como jugada
+    const i = accion.desde, k = accion.hacia;
+    if (![i, k].every((x) => Number.isInteger(x) && x >= 0 && x < MANO) || i === k) throw new Error("lugares inválidos");
+    if (!estado.mano[jugador][i]) return rechazo(estado, "sin_carta");
+    const s = structuredClone(estado);
+    const m = s.mano[jugador], d = s.debajo[jugador];
+    [m[i], m[k]] = [m[k], m[i]];
+    [d[i], d[k]] = [d[k], d[i]];
+    const ev = [{ t: "mover", jugador, desde: i, hacia: k }];
     s.ultimo = ev[0];
     return { estado: s, eventos: ev };
   }
@@ -410,6 +480,7 @@ export function vista(s, j) {
     coincidencia: s.coincidencia ? { id: s.coincidencia.id, t: s.coincidencia.t, carta: s.coincidencia.cartas[0] } : null,
     finPendiente: s.finPendiente ? { ...s.finPendiente } : null,
     trabado: s.trabado ? { desde: s.trabado.desde, listos: [...s.trabado.listos] } : null,
+    abrir: [...s.abrir],
     chins: [...s.chins], llevadas: [...s.llevadas],
     ultimo: s.ultimo, seq: s.seq,
     acciones: acciones(s, j)

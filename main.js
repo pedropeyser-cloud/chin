@@ -11,14 +11,14 @@ const app = document.getElementById("app");
 const params = new URLSearchParams(location.search);
 let desmontarLobby = null, juegoAbierto = null;
 
-/** Quién soy para las mesas: el perfil si hay, o un invitado sin gloria. */
+/** Quién soy para las mesas: el perfil si hay, o un invitado. */
 function yo(enRed = false) {
   const p = nube.miPerfil();
   if (!p) return { nombre: enRed ? "Jugador" : "Vos", estilo: {}, id: null };
   return { nombre: p.usuario, estilo: { ...estiloParaMesa(p), cara: formaDe(p) }, id: p.id };
 }
 
-/** Al terminar una partida con un amigo: el anfitrión la propone y cada uno la confirma (la gloria se reparte cuando confirmaron los dos). */
+/** Al terminar una partida con un amigo: el anfitrión la propone y cada uno la confirma (queda en el historial cuando confirmaron los dos; el CHIN no da gloria). */
 async function alFin({ v, fuente, codigo, n }) {
   const p = nube.miPerfil();
   if (!p || fuente.esLocal) return;

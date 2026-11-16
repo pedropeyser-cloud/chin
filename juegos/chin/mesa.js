@@ -26,6 +26,14 @@ const SOL = (() => {
   return `<svg viewBox="-60 -60 120 120" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><circle r="27"/>${rayos}</g></svg>`;
 })();
 
+/** Pantalla completa solo en la compu (con mouse). Se llama desde un clic: el navegador lo exige. */
+export function pedirPantallaCompleta() {
+  try {
+    if (document.fullscreenElement || !document.documentElement.requestFullscreen || !matchMedia("(pointer: fine)").matches) return;
+    document.documentElement.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+  } catch { /* ok */ }
+}
+
 function tween(nodo, desde, hasta, ms) {
   if (desde === hasta || QUIETO) { nodo.textContent = hasta; return; }
   const t0 = performance.now();
@@ -54,9 +62,9 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     <header class="franja arriba">
       <div class="cara-slot rival-cara"><span class="burbuja rival-burbuja"></span></div>
       <div class="quien"><span class="n-rival"></span><small class="sub-rival">rival</small></div>
-      <div class="total total-rival" aria-live="off"><b>0</b><small>cartas</small></div>
-      <div class="mazo rival-mazo"></div>
+      <div class="mazo rival-mazo" title="Cartas que le quedan al rival"></div>
       <button class="icono emote-btn" aria-label="Reacciones">💬</button>
+      <button class="icono pantalla-btn" aria-label="Pantalla completa" title="Pantalla completa" hidden>⛶</button>
       <button class="icono sonido-btn" aria-label="Sonido"></button>
       <div class="emotes-bandeja" hidden></div>
     </header>
@@ -67,12 +75,12 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
       <div class="pila" data-pila="1" role="button" aria-label="Pila derecha"><div class="hueco"></div></div>
       <div class="grito" aria-live="assertive"></div>
       <div class="aviso" aria-live="polite"></div>
+      <aside class="marcador" hidden aria-label="Marcador de la serie"><small>serie</small><b class="m-rival">0</b><i>–</i><b class="m-yo">0</b></aside>
     </div>
     <div class="mano-fila mia-fila" aria-label="Tus cartas"></div>
     <header class="franja abajo">
-      <div class="mazo mio-mazo" aria-label="Tu mazo"></div>
+      <div class="mazo mio-mazo" aria-label="Tu mazo" title="Cartas que te quedan"></div>
       <div class="quien"><span class="n-yo"></span><small class="ayuda">arrastrá las cartas a una pila</small></div>
-      <div class="total total-yo" aria-live="off"><b>0</b><small>cartas</small></div>
       <div class="cara-slot mia-cara"><span class="burbuja mia-burbuja"></span></div>
     </header>
     <div class="cuenta" aria-hidden="true"></div>
@@ -106,9 +114,26 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     const d = jug[j]?.estilo?.dorso || "clasico";
     m.innerHTML = `<div class="capa c3">${dorso(d)}</div><div class="capa c2">${dorso(d)}</div><div class="capa c1">${dorso(d)}</div><b>0</b>`;
   });
-  const enMazoN = mazos.map((m) => m.querySelector("b"));        // en el mazo: lo que queda para reponer
-  const totales = [yo === 0 ? $(".total-yo") : $(".total-rival"), yo === 0 ? $(".total-rival") : $(".total-yo")];
-  const cuentas = totales.map((n) => n.querySelector("b"));        // en su poder: mazo + fila (lo que le falta para ganar)
+  // un solo número por jugador, sobre su mazo: todas las cartas que le quedan (mazo + fila, contando las apiladas)
+  const cuentas = mazos.map((m) => m.querySelector("b"));
+  const totales = mazos;
+  const ayuda = $(".ayuda");
+
+  // pantalla completa en la compu: hace falta para ver bien las cartas del rival
+  const btnPantalla = $(".pantalla-btn");
+  const puedePantalla = !!document.documentElement.requestFullscreen && matchMedia("(pointer: fine)").matches;
+  if (puedePantalla) {
+    btnPantalla.hidden = false;
+    btnPantalla.addEventListener("click", () => {
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      else pedirPantallaCompleta();
+    });
+    // si entró sin un clic (link de invitado), la pide en el primer toque sobre la mesa
+    if (!document.fullscreenElement) mesa.addEventListener("pointerdown", (e) => { if (!e.target.closest(".pantalla-btn")) pedirPantallaCompleta(); }, { once: true });
+  }
+  const pintarPantalla = () => { btnPantalla.textContent = document.fullscreenElement ? "🗗" : "⛶"; mesa.classList.toggle("completa", !!document.fullscreenElement); };
+  document.addEventListener("fullscreenchange", pintarPantalla);
+  pintarPantalla();
 
   const btnSonido = $(".sonido-btn");
   const pintarSonido = () => { btnSonido.textContent = sonido.mudo ? "🔇" : "🔊"; };
@@ -119,7 +144,16 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   const S = { tope: [null, null], mano: [Array(MANO).fill(null), Array(MANO).fill(null)], trabado: false, apil: [Array(MANO).fill(0), Array(MANO).fill(0)], cartas: [null, null], coincId: null, par: false, vistoId: null, vistoT: 0, fin: false };
   let llegadas = [null, null];        // por pila: de dónde viene la carta que acaba de caer
   let ultimoAviso = 0;
-  let yoQuiero = false, rivalQuiere = false;
+  let yoQuiero = false, rivalQuiere = false, rivalNo = false;
+  const serie = [0, 0];        // partidas ganadas por cada uno en esta mesa (se ve desde la primera revancha)
+  let serieViva = false;
+  const marcador = $(".marcador");
+  function pintarMarcador() {
+    marcador.hidden = !serieViva;
+    marcador.querySelector(".m-yo").textContent = serie[yo];
+    marcador.querySelector(".m-rival").textContent = serie[rv];
+    marcador.setAttribute("aria-label", `Serie: vos ${serie[yo]}, ${nombres[rv]} ${serie[rv]}`);
+  }
 
   function mostrarAviso(txt) {
     aviso.textContent = txt;
@@ -172,7 +206,10 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     const x = e.clientX - a.dx - a.r0.left, y = e.clientY - a.dy - a.r0.top;
     a.fantasma.style.transform = `translate(${x}px, ${y}px) rotate(${Math.max(-8, Math.min(8, (e.clientX - a.x0) / 30))}deg) scale(1.06)`;
     if (a.tipo === "carta") pilas.forEach((pl) => pl.classList.toggle("encima", dentro(pl.getBoundingClientRect(), e.clientX, e.clientY, 18)));
-    else filas[yo].classList.toggle("encima", dentro(filas[yo].getBoundingClientRect(), e.clientX, e.clientY, 14));
+    else {
+      filas[yo].classList.toggle("encima", dentro(filas[yo].getBoundingClientRect(), e.clientX, e.clientY, 14));
+      pilas.forEach((pl) => pl.classList.toggle("encima", dentro(pl.getBoundingClientRect(), e.clientX, e.clientY, 18)));
+    }
   }
   function volverAlLugar(a) {
     const f = a.fantasma;
@@ -192,7 +229,9 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
       if (a.tipo === "mazo" && v.trabado && !v.trabado.listos[yo]) { enviar({ t: "destrabar" }); return; }
       if (performance.now() - avisoArrastre > 4000) {
         avisoArrastre = performance.now();
-        mostrarAviso(a.tipo === "carta" ? "Arrastrala hasta una pila" : (v.mano[yo].includes(null) ? "Arrastrá del mazo a un hueco de tu fila" : "Tu fila está completa"));
+        mostrarAviso(a.tipo === "carta" ? "Arrastrala hasta una pila o a otro lugar de tu fila"
+          : v.mano[yo].includes(null) ? "Arrastrá del mazo a un hueco de tu fila"
+          : v.abrir?.[yo] ? "Arrastrá una del mazo a tu pila del centro" : "Tu fila está completa");
       }
       return;
     }
@@ -200,11 +239,16 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
       const p = pilas.findIndex((pl) => dentro(pl.getBoundingClientRect(), e.clientX, e.clientY, 18));
       if (p < 0) {
         // sobre otra carta de la fila: si es del mismo número, se apilan en ese lugar
+        // sobre otra de distinto número (o un hueco), cambian de lugar: así se ordena la fila
         const k = slots[yo].findIndex((n, q) => q !== a.i && dentro(n.getBoundingClientRect(), e.clientX, e.clientY, 4));
         const v = fuente.vista();
-        if (k >= 0 && v.mano[yo][k]) {
+        if (k >= 0) {
           a.fantasma.remove(); a.origen.classList.remove("levantada");
-          enviar({ t: "juntar", desde: a.i, hacia: k });
+          const ci = v.mano[yo][a.i], ck = v.mano[yo][k];
+          const enLugar = (q) => (v.mano[yo][q] ? 1 + (v.apiladas?.[yo]?.[q] || 0) : 0);
+          const iguales = !!ck && ci.split("-")[0] === ck.split("-")[0];
+          if (iguales && enLugar(a.i) + enLugar(k) <= 4) enviar({ t: "juntar", desde: a.i, hacia: k });
+          else enviar({ t: "mover", desde: a.i, hacia: k });
           return;
         }
         volverAlLugar(a); return;
@@ -215,8 +259,17 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
       enviar({ t: "poner", carta: a.i, pila: p });
       return;
     }
-    // del mazo a la fila: al hueco que está debajo, o al primero libre
+    // del mazo a una pila del centro: abrir la ronda (con la fila completa)
     const v = fuente.vista();
+    if (pilas.some((pl) => dentro(pl.getBoundingClientRect(), e.clientX, e.clientY, 18))) {
+      const rect = a.fantasma.getBoundingClientRect();
+      a.fantasma.remove();
+      if (v.abrir?.[yo]) { soltado = { rect, t: performance.now() }; enviar({ t: "abrir" }); }
+      else if (v.abrir?.some(Boolean)) mostrarAviso(`Esperando que ${nombres[rv]} dé vuelta su carta`);
+      else mostrarAviso("Del mazo se arrastra a un hueco de tu fila");
+      return;
+    }
+    // del mazo a la fila: al hueco que está debajo, o al primero libre
     if (!dentro(filas[yo].getBoundingClientRect(), e.clientX, e.clientY, 14)) { volverAlLugar(a); return; }
     let i = slots[yo].findIndex((n, k) => !v.mano[yo][k] && dentro(n.getBoundingClientRect(), e.clientX, e.clientY, 6));
     if (i < 0) i = v.mano[yo].findIndex((c) => !c);
@@ -321,6 +374,16 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
         case "juntar":
           sonido.play("poner");
           break;
+        case "mover":
+          if (e.jugador === yo) sonido.play("carta");
+          break;
+        case "abrir": {
+          const mio = e.jugador === yo && soltado && performance.now() - soltado.t < 1500;
+          if (e.carta) llegadas[e.pila] = { de: mio ? soltado.rect : mazos[e.jugador].getBoundingClientRect(), girar: true };
+          if (e.jugador === yo) soltado = null;
+          sonido.play("carta");
+          break;
+        }
         case "listo":
           mostrarAviso(e.jugador === yo ? `Esperando que ${nombres[rv]} toque su mazo…` : `${nombres[rv]} ya tocó su mazo: tocá el tuyo`);
           break;
@@ -351,14 +414,23 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
         }
         case "fin":
           S.fin = true;
+          serie[v.ganador]++;
+          pintarMarcador();
           try { alFin?.(v); } catch (err) { console.error(err); }
           setTimeout(() => mostrarFin(v), dur(cantaron ? 1100 : 600));
           break;
         case "quiere_revancha":
-          if (e.jugador !== yo) { rivalQuiere = true; pintarRevancha(); }
+          if (e.jugador !== yo) { rivalQuiere = true; rivalNo = false; pintarRevancha(); sonido.play("coincidencia"); }
+          break;
+        case "no_revancha":
+          yoQuiero = false; rivalQuiere = false;
+          if (e.jugador !== yo) rivalNo = true;
+          pintarRevancha();
           break;
         case "revancha":
-          yoQuiero = false; rivalQuiere = false;
+          if (S.fin) serieViva = true;
+          yoQuiero = false; rivalQuiere = false; rivalNo = false;
+          pintarMarcador();
           fin.hidden = true; S.fin = false; S.tope = [null, null]; S.coincId = null; cancelar();
           pilas.forEach((p) => p.querySelectorAll(".tope").forEach((t) => t.remove()));
           reaccion.suma = 0; reaccion.n = 0;
@@ -372,6 +444,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   function pintar(v) {
     // contadores
     for (const j of [0, 1]) {
+      mazos[j].setAttribute("aria-label", j === yo ? `Tu mazo: te quedan ${v.cartas[j]} cartas` : `Mazo del rival: le quedan ${v.cartas[j]} cartas`);
       if (S.cartas[j] !== v.cartas[j]) {
         tween(cuentas[j], S.cartas[j] ?? v.cartas[j], v.cartas[j], 380);
         const subio = S.cartas[j] !== null && v.cartas[j] > S.cartas[j];
@@ -380,7 +453,6 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
         totales[j].classList.toggle("poquitas", v.cartas[j] <= 10);
         S.cartas[j] = v.cartas[j];
       }
-      enMazoN[j].textContent = v.enMazo[j];
       mazos[j].classList.toggle("vacio", v.enMazo[j] === 0);
       mazos[j].querySelector(".c1").style.display = v.enMazo[j] > 0 ? "" : "none";
       mazos[j].querySelector(".c2").style.display = v.enMazo[j] > 8 ? "" : "none";
@@ -423,6 +495,14 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     const tr = v.fase === "jugando" ? v.trabado : null;
     mazos.forEach((m, j) => { m.classList.toggle("pide", !!tr && !tr.listos[j]); m.classList.toggle("listo", !!tr && tr.listos[j]); });
     if (!!tr !== S.trabado) { S.trabado = !!tr; if (tr && !tr.listos[yo]) mostrarAviso("Nadie puede tirar: tocá tu mazo"); }
+    // apertura de ronda: cada uno llena su fila y da vuelta una del mazo en su pila
+    const abre = v.fase === "jugando" && !!v.abrir?.some(Boolean);
+    const filaLlena = !v.mano[yo].includes(null) || v.enMazo[yo] === 0;
+    pilas.forEach((pl, j) => pl.classList.toggle("pide", abre && !!v.abrir[j] && j === yo && filaLlena));
+    ayuda.textContent = !abre ? "arrastrá las cartas a una pila"
+      : v.abrir[yo] ? (filaLlena ? "arrastrá una del mazo a tu pila del centro" : "llená tu fila arrastrando del mazo")
+      : `esperando que ${nombres[rv]} dé vuelta su carta`;
+    mesa.classList.toggle("abriendo", abre);
     mesa.dataset.estado = v.fase;
   }
 
@@ -440,6 +520,8 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
           <li><b>${Number(v.chins[rv]) || 0}</b> de ${esc(nombres[rv])}</li>
           ${prom !== null ? `<li>reaccionaste en <b>${prom} ms</b> en promedio</li>` : ""}
         </ul>
+        ${serieViva ? `<p class="fin-serie">Serie: <b>${serie[yo]}</b> a <b>${serie[rv]}</b></p>` : ""}
+        <div class="fin-pedido" hidden></div>
         <div class="fin-botones">
           <button class="boton primario revancha" data-a="revancha">Revancha</button>
           ${otraDificultad ? `<button class="boton" data-a="dificultad">Cambiar dificultad</button>` : ""}
@@ -453,14 +535,31 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   function pintarRevancha() {
     const b = fin.querySelector(".revancha");
     if (!b) return;
+    const pedido = fin.querySelector(".fin-pedido");
+    // el rival pide la revancha: aceptar o declinar, bien a la vista
+    if (rivalQuiere && !yoQuiero) {
+      pedido.hidden = false;
+      pedido.innerHTML = `<p><b>${esc(nombres[rv])}</b> te pide la revancha</p>
+        <div class="fin-pedido-botones"><button class="boton primario" data-a="aceptar">Aceptar</button><button class="boton" data-a="declinar">Declinar</button></div>`;
+      b.hidden = true;
+      return;
+    }
+    b.hidden = false;
+    pedido.hidden = !(yoQuiero || rivalNo);
+    pedido.innerHTML = yoQuiero ? `<p>Le pediste la revancha a <b>${esc(nombres[rv])}</b>. Esperando que acepte…</p>`
+      : rivalNo ? `<p><b>${esc(nombres[rv])}</b> no quiere la revancha.</p>` : "";
     b.disabled = yoQuiero;
-    b.textContent = yoQuiero ? "Esperando al rival…" : rivalQuiere ? `${nombres[rv]} quiere revancha: aceptar` : "Revancha";
+    b.textContent = yoQuiero ? "Esperando…" : rivalNo ? "Pedirla otra vez" : fuente.esLocal ? "Revancha" : "Pedir revancha";
   }
   fin.addEventListener("click", (e) => {
     const a = e.target.closest("[data-a]")?.dataset.a;
-    if (a === "revancha") { if (!yoQuiero) { yoQuiero = true; pintarRevancha(); fuente.revancha(); } }
+    if (a === "revancha" || a === "aceptar") { if (!yoQuiero) { yoQuiero = true; rivalNo = false; pintarRevancha(); fuente.revancha(); } }
+    else if (a === "declinar") { rivalQuiere = false; fuente.declinar?.(); pintarRevancha(); }
     else if (a === "dificultad") otraDificultad?.();
-    else if (a === "salir") salir?.();
+    else if (a === "salir") {
+      // en red, avisarle al otro que no hay revancha antes de cortar
+      if (!fuente.esLocal) { fuente.declinar?.(); setTimeout(() => salir?.(), 200); } else salir?.();
+    }
   });
 
   // ---------- cuenta regresiva ----------
@@ -518,6 +617,8 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   pintar(fuente.vista());
 
   return () => {
+    document.removeEventListener("fullscreenchange", pintarPantalla);
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     baja(); bajaE(); bajaC(); clearInterval(timerPing); cancelAnimationFrame(raf); removeEventListener("keydown", teclas); document.removeEventListener("pointerdown", cerrarBandeja, true);
     cesar.forEach((f) => f && f()); cont.innerHTML = "";
   };

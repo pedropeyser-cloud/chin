@@ -29,6 +29,8 @@ function accionLimpia(a) {
   if (a.t === "poner" && (a.pila === 0 || a.pila === 1) && Number.isInteger(a.carta) && a.carta >= 0 && a.carta < 5) return { t: "poner", carta: a.carta, pila: a.pila };
   if (a.t === "reponer" && Number.isInteger(a.carta) && a.carta >= 0 && a.carta < 5) return { t: "reponer", carta: a.carta };
   if (a.t === "destrabar") return { t: "destrabar" };
+  if (a.t === "abrir") return { t: "abrir" };
+  if (a.t === "mover" && [a.desde, a.hacia].every((x) => Number.isInteger(x) && x >= 0 && x < 5) && a.desde !== a.hacia) return { t: "mover", desde: a.desde, hacia: a.hacia };
   if (a.t === "juntar" && [a.desde, a.hacia].every((x) => Number.isInteger(x) && x >= 0 && x < 5) && a.desde !== a.hacia) return { t: "juntar", desde: a.desde, hacia: a.hacia };
   if (a.t === "chin") return { t: "chin", visto: Number.isInteger(a.visto) ? a.visto : null };
   return null;
@@ -57,6 +59,7 @@ export function vistaLimpia(v) {
     coincidencia: c && Number.isInteger(c.id) ? { id: c.id, t: num(c.t), carta: cartaOk(c.carta) } : null,
     finPendiente: v.finPendiente && typeof v.finPendiente === "object" ? { jugador: lado(v.finPendiente.jugador), hasta: num(v.finPendiente.hasta) } : null,
     trabado: v.trabado && typeof v.trabado === "object" ? { desde: num(v.trabado.desde), listos: par(v.trabado.listos, (x) => x === true) } : null,
+    abrir: par(v.abrir, (x) => x === true),
     chins: par(v.chins, (x) => ent(x, 400)), llevadas: par(v.llevadas, (x) => ent(x, 4000)),
     ultimo: null, seq: ent(v.seq, 1e9), acciones: [],
   };
@@ -69,6 +72,8 @@ export function eventosLimpios(ev) {
     switch (e.t) {
       case "poner": out.push({ t: "poner", jugador: lado(e.jugador), carta: cartaOk(e.carta), pila: lado(e.pila), lugar: ent(e.lugar, 4), sube: cartaOk(e.sube) }); break;
       case "juntar": out.push({ t: "juntar", jugador: lado(e.jugador), desde: ent(e.desde, 4), hacia: ent(e.hacia, 4), carta: cartaOk(e.carta), n: ent(e.n, 48) }); break;
+      case "abrir": out.push({ t: "abrir", jugador: lado(e.jugador), carta: cartaOk(e.carta), pila: lado(e.pila) }); break;
+      case "mover": out.push({ t: "mover", jugador: lado(e.jugador), desde: ent(e.desde, 4), hacia: ent(e.hacia, 4) }); break;
       case "reponer": out.push({ t: "reponer", jugador: lado(e.jugador), carta: cartaOk(e.carta), lugar: ent(e.lugar, 4) }); break;
       case "listo": out.push({ t: "listo", jugador: lado(e.jugador) }); break;
       case "ronda": out.push({ t: "ronda", n: ent(e.n, 1e6), cartas: par(e.cartas, cartaOk), arranca: num(e.arranca) }); break;
@@ -79,6 +84,7 @@ export function eventosLimpios(ev) {
       case "fin": out.push({ t: "fin", ganador: lado(e.ganador) }); break;
       case "revancha": out.push({ t: "revancha" }); break;
       case "quiere_revancha": out.push({ t: "quiere_revancha", jugador: lado(e.jugador) }); break;
+      case "no_revancha": out.push({ t: "no_revancha", jugador: lado(e.jugador) }); break;
       default:
     }
   }
@@ -157,6 +163,11 @@ export function crearAnfitrion(yo, { cuenta = 3000 } = {}) {
           quieren[1] = true;
           if (quieren[0]) { nueva(); emitir([{ t: "revancha" }]); } else emitir([{ t: "quiere_revancha", jugador: 1 }]);
           break;
+        case "no_revancha":
+          if (!estado || estado.fase !== "fin") return;
+          quieren[0] = quieren[1] = false;
+          emitir([{ t: "no_revancha", jugador: 1 }]);
+          break;
         case "emote":
           if (emoteValido(m.k) && topeE(1)) { b.subsE.forEach((f) => f(m.k, 1)); }
           break;
@@ -181,6 +192,12 @@ export function crearAnfitrion(yo, { cuenta = 3000 } = {}) {
       if (!estado || estado.fase !== "fin") return;
       quieren[0] = true;
       if (quieren[1]) { nueva(); emitir([{ t: "revancha" }]); } else emitir([{ t: "quiere_revancha", jugador: 0 }]);
+    },
+    /** No quiero (o me voy): le avisa al otro y se olvidan los pedidos de revancha. */
+    declinar() {
+      if (!estado || estado.fase !== "fin") return;
+      quieren[0] = quieren[1] = false;
+      emitir([{ t: "no_revancha", jugador: 0 }]);
     },
     /** Lo que mide el anfitrión: ida del invitado en ms (para mostrarlo con honestidad). */
     latencia: () => Math.round(owd),
@@ -282,6 +299,7 @@ export function entrarComoInvitado(codigo, yo) {
     suscribir: b.suscribir, suscribirEmote: b.suscribirEmote, suscribirConexion: b.suscribirConexion,
     emote(k) { if (emoteValido(k)) sala.enviar({ t: "emote", k }); },
     revancha() { sala.enviar({ t: "revancha" }); },
+    declinar() { sala.enviar({ t: "no_revancha" }); },
     latencia: () => Math.round(rtt / 2),
     destruir() { clearInterval(pingT); clearInterval(vigia); sala.cerrar(); b.subs.clear(); b.subsE.clear(); b.subsC.clear(); },
   };

@@ -164,3 +164,43 @@
   .total b { font-size: 34px; }
   .quien span { font-size: 17px; }
 }
+
+/* 2026-11-16: un solo número por jugador, sobre su mazo (todas las cartas que le quedan) */
+.mazo b { font-size: clamp(28px, 4.2dvh, 40px); transition: color .2s; }
+.mazo.poquitas b { color: #ffcf6e; }
+.mazo.late b { animation: late-mazo .35s ease-out; }
+.mazo.sube b { animation: sube-mazo .6s ease-out; }
+@keyframes late-mazo { 40% { transform: translate(-50%, -50%) scale(1.25); } }
+@keyframes sube-mazo { 30% { transform: translate(-50%, -50%) scale(1.35); color: #e2675a; } }
+.mazo.vacio b { opacity: 1; }
+
+/* apertura de ronda: la pila propia pide su carta del mazo */
+.pila.pide .hueco { border-color: var(--ambar); border-style: solid; box-shadow: 0 0 18px 4px rgba(240,169,59,.45); animation: pide 1s ease-in-out infinite; }
+.mesa.abriendo .sol { opacity: .55; }
+
+/* marcador de la serie (aparece desde la primera revancha): en el celular arriba del paño; en la compu, al costado */
+.marcador { position: absolute; z-index: 5; left: 50%; top: 10px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px;
+  padding: 4px 14px 2px; border-radius: 999px; background: rgba(12,14,18,.78); border: 1px solid var(--linea); box-shadow: 0 6px 18px rgba(0,0,0,.45); pointer-events: none; }
+.marcador small { font-family: Plex; font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--gris); }
+.marcador b { font-family: Caveat; font-weight: 700; font-size: 28px; line-height: 1; color: var(--papel); font-variant-numeric: tabular-nums; }
+.marcador .m-yo { color: var(--ambar); }
+.marcador i { font-style: normal; color: var(--gris); }
+@media (min-width: 760px) {
+  .marcador { left: auto; right: calc(100% + 18px); top: 50%; transform: translateY(-50%); flex-direction: column; gap: 2px; padding: 14px 16px 10px; border-radius: 14px; }
+  .marcador b { font-size: 46px; line-height: .9; }
+  .marcador i { line-height: .6; }
+}
+
+/* revancha: pedido con aceptar / declinar */
+.fin-serie { font-family: Plex; font-size: 14px; color: var(--texto-suave); }
+.fin-serie b { font-family: Caveat; font-size: 30px; color: var(--ambar); }
+.fin-pedido { border: 1px solid rgba(240,169,59,.55); background: rgba(240,169,59,.08); border-radius: 14px; padding: 12px; display: grid; gap: 10px; }
+.fin-pedido p { font-size: 17px; }
+.fin-pedido-botones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* compu: mesa más ancha y cartas del rival grandes (se juega en pantalla completa) */
+@media (pointer: fine) and (min-width: 900px) {
+  .mesa { max-width: min(820px, 92vw); --hw: clamp(60px, 12.5dvh, 140px); --cw: clamp(70px, 15dvh, 160px); --sol-d: clamp(120px, 21dvh, 210px); --mw: clamp(52px, 9dvh, 96px); }
+  .rival-fila .mano-slot.mini { width: calc(var(--hw) * .86); }
+  .mano-fila { gap: clamp(8px, 1.2vw, 16px); }
+}

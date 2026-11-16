@@ -51,6 +51,14 @@ export function bot(estado, jugador, ahora, dificultad = "rapido") {
 
   // 2) ritmo propio entre una carta y la siguiente, y un rato para leer la mesa cuando cambia lo de arriba
   const n = s.jugadas[jugador];
+  // ronda nueva con el centro vacío: llena su fila del mazo y, completa, da vuelta su carta del centro
+  if (s.abrir && (s.abrir[0] || s.abrir[1])) {
+    if (!s.abrir[jugador]) return null;
+    const desde = Math.max(s.arranca, s.ultimaT[jugador]);
+    if (ahora - desde < entre(d.repone, hash(...clave, "ab", n))) return null;
+    const todas = acciones(s, jugador, ahora);
+    return todas.find((a) => a.t === "reponer") || todas.find((a) => a.t === "abrir") || null;
+  }
   if (ahora - s.ultimaT[jugador] < entre(d.ritmo, hash(...clave, "rt", n))) return null;
   const cambio = Math.max(s.arranca, s.ultimaT[1 - jugador]);
   if (ahora - cambio < entre(d.mira, hash(...clave, "mi", s.seq))) return null;
