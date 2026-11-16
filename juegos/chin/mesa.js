@@ -7,6 +7,9 @@ import { cara, reaccionar, parpadear } from "../../nucleo/caras.js";
 import { sonido } from "../../nucleo/sonido.js";
 import { LISTA as EMOTES, textoDe, mudo as emotesMudo, ponerMudo } from "../../nucleo/emotes.js";
 
+const MANO = 5;
+const nombreCarta = (id) => { const [n, p] = id.split("-"); return `${n} de ${p}`; };
+
 const QUIETO = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const dur = (ms) => (QUIETO ? Math.min(ms, 60) : ms);
 
@@ -51,12 +54,13 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     <header class="franja arriba">
       <div class="cara-slot rival-cara"><span class="burbuja rival-burbuja"></span></div>
       <div class="quien"><span class="n-rival"></span><small class="sub-rival">rival</small></div>
-      <div class="mano-slot mini rival-mano" aria-label="Carta del rival"></div>
+      <div class="total total-rival" aria-live="off"><b>0</b><small>cartas</small></div>
       <div class="mazo rival-mazo"></div>
       <button class="icono emote-btn" aria-label="Reacciones">💬</button>
       <button class="icono sonido-btn" aria-label="Sonido"></button>
       <div class="emotes-bandeja" hidden></div>
     </header>
+    <div class="mano-fila rival-fila" aria-label="Las cartas del rival"></div>
     <div class="pano">
       <div class="pila" data-pila="0" role="button" aria-label="Pila izquierda"><div class="hueco"></div></div>
       <button class="chin sol" aria-label="CHIN" aria-disabled="true">${SOL}<span>CHIN</span></button>
@@ -64,10 +68,11 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
       <div class="grito" aria-live="assertive"></div>
       <div class="aviso" aria-live="polite"></div>
     </div>
+    <div class="mano-fila mia-fila" aria-label="Tus cartas"></div>
     <header class="franja abajo">
-      <div class="mazo mio-mazo" role="button" aria-label="Tu mazo: tocá para dar vuelta"></div>
-      <div class="mano-slot mio-mano" aria-label="Tu carta dada vuelta"></div>
-      <div class="quien"><span class="n-yo"></span><small class="ayuda">tocá una pila · espacio = CHIN</small></div>
+      <div class="mazo mio-mazo" aria-label="Tu mazo"></div>
+      <div class="quien"><span class="n-yo"></span><small class="ayuda">arrastrá las cartas a una pila</small></div>
+      <div class="total total-yo" aria-live="off"><b>0</b><small>cartas</small></div>
       <div class="cara-slot mia-cara"><span class="burbuja mia-burbuja"></span></div>
     </header>
     <div class="cuenta" aria-hidden="true"></div>
@@ -79,8 +84,14 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   const sol = $(".sol"), grito = $(".grito"), aviso = $(".aviso"), cuenta = $(".cuenta"), fin = $(".fin");
   const pilas = [...mesa.querySelectorAll(".pila")];
   const mazos = [yo === 0 ? $(".mio-mazo") : $(".rival-mazo"), yo === 0 ? $(".rival-mazo") : $(".mio-mazo")];
-  const manos = [yo === 0 ? $(".mio-mano") : $(".rival-mano"), yo === 0 ? $(".rival-mano") : $(".mio-mano")];
-  const mazoMio = mazos[yo], manoMia = manos[yo];
+  const filas = [yo === 0 ? $(".mia-fila") : $(".rival-fila"), yo === 0 ? $(".rival-fila") : $(".mia-fila")];
+  filas.forEach((f, j) => {
+    f.innerHTML = Array.from({ length: MANO }, (_, i) => j === yo
+      ? `<button type="button" class="mano-slot" data-i="${i}" aria-label="Carta ${i + 1}"></button>`
+      : `<div class="mano-slot mini" data-i="${i}"></div>`).join("");
+  });
+  const slots = filas.map((f) => [...f.querySelectorAll(".mano-slot")]);
+  const mazoMio = mazos[yo];
 
   const pano = jug[yo]?.estilo?.pano;
   if (pano) $(".pano").dataset.pano = pano;
@@ -95,7 +106,9 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     const d = jug[j]?.estilo?.dorso || "clasico";
     m.innerHTML = `<div class="capa c3">${dorso(d)}</div><div class="capa c2">${dorso(d)}</div><div class="capa c1">${dorso(d)}</div><b>0</b>`;
   });
-  const cuentas = mazos.map((m) => m.querySelector("b"));
+  const enMazoN = mazos.map((m) => m.querySelector("b"));        // en el mazo: lo que queda para reponer
+  const totales = [yo === 0 ? $(".total-yo") : $(".total-rival"), yo === 0 ? $(".total-rival") : $(".total-yo")];
+  const cuentas = totales.map((n) => n.querySelector("b"));        // en su poder: mazo + fila (lo que le falta para ganar)
 
   const btnSonido = $(".sonido-btn");
   const pintarSonido = () => { btnSonido.textContent = sonido.mudo ? "🔇" : "🔊"; };
@@ -103,7 +116,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   btnSonido.addEventListener("click", () => { sonido.setMudo(!sonido.mudo); pintarSonido(); });
 
   // ---------- estado de lo que está dibujado ----------
-  const S = { tope: [null, null], mano: [null, null], cartas: [null, null], coincId: null, par: false, vistoId: null, vistoT: 0, fin: false };
+  const S = { tope: [null, null], mano: [Array(MANO).fill(null), Array(MANO).fill(null)], trabado: false, apil: [Array(MANO).fill(0), Array(MANO).fill(0)], cartas: [null, null], coincId: null, par: false, vistoId: null, vistoT: 0, fin: false };
   let llegadas = [null, null];        // por pila: de dónde viene la carta que acaba de caer
   let ultimoAviso = 0;
   let yoQuiero = false, rivalQuiere = false;
@@ -130,24 +143,112 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     const r = fuente.enviar(accion);
     if (r && typeof r.then === "function") r.then(rechazar); else rechazar(r);   // en red la respuesta llega después
   }
-  const poner = (p) => enviar({ t: "poner", pila: p });
-  const voltear = () => { if (S.mano[yo] === null && (S.cartas[yo] ?? 0) > 0) enviar({ t: "voltear" }); };
+  // ---------- arrastrar ----------
+  // La velocidad de la mano es parte del juego: las cartas se arrastran de la fila a una pila y del mazo a la fila.
+  // Con los mazos marcados (nadie puede tirar), se toca el mazo propio.
+  const dentro = (r, x, y, m = 0) => x >= r.left - m && x <= r.right + m && y >= r.top - m && y <= r.bottom + m;
+  let arrastre = null;        // { tipo: "carta"|"mazo", i, fantasma, dx, dy, x0, y0, movio, origen }
+  let soltado = null;         // { rect, t }: de dónde sale la carta que acabo de soltar (para la animación a la pila)
+  let avisoArrastre = 0;
+
+  function empezar(e, tipo, i) {
+    const v = fuente.vista();
+    if (v.fase !== "jugando" || arrastre) return;
+    const origen = tipo === "carta" ? slots[yo][i] : mazoMio;
+    const r = (tipo === "carta" ? origen.firstElementChild : origen.querySelector(".c1"))?.getBoundingClientRect() || origen.getBoundingClientRect();
+    const mr = mesa.getBoundingClientRect();
+    const fantasma = el(`<div class="carta arrastre">${tipo === "carta" ? frente(v.mano[yo][i]) : dorso(jug[yo]?.estilo?.dorso || "clasico")}</div>`);
+    Object.assign(fantasma.style, { left: r.left - mr.left + "px", top: r.top - mr.top + "px", width: r.width + "px" });
+    fantasma.hidden = true;   // aparece recién cuando el dedo se mueve: un toque solo no levanta nada
+    mesa.append(fantasma);
+    arrastre = { tipo, i, fantasma, dx: e.clientX - r.left, dy: e.clientY - r.top, x0: e.clientX, y0: e.clientY, movio: false, origen, r0: r, mr };
+    try { origen.setPointerCapture(e.pointerId); } catch { /* ok */ }
+  }
+  function mover(e) {
+    const a = arrastre;
+    if (!a) return;
+    if (!a.movio && Math.hypot(e.clientX - a.x0, e.clientY - a.y0) < 6) return;
+    if (!a.movio) { a.movio = true; a.fantasma.hidden = false; if (a.tipo === "carta") a.origen.classList.add("levantada"); sonido.play("carta"); }
+    const x = e.clientX - a.dx - a.r0.left, y = e.clientY - a.dy - a.r0.top;
+    a.fantasma.style.transform = `translate(${x}px, ${y}px) rotate(${Math.max(-8, Math.min(8, (e.clientX - a.x0) / 30))}deg) scale(1.06)`;
+    if (a.tipo === "carta") pilas.forEach((pl) => pl.classList.toggle("encima", dentro(pl.getBoundingClientRect(), e.clientX, e.clientY, 18)));
+    else filas[yo].classList.toggle("encima", dentro(filas[yo].getBoundingClientRect(), e.clientX, e.clientY, 14));
+  }
+  function volverAlLugar(a) {
+    const f = a.fantasma;
+    const anim = QUIETO ? null : f.animate([{ transform: f.style.transform || "none" }, { transform: "none" }], { duration: 160, easing: "ease-out" });
+    const fin = () => { f.remove(); a.origen.classList.remove("levantada"); };
+    if (anim) anim.finished.then(fin).catch(fin); else fin();
+  }
+  function soltar(e) {
+    const a = arrastre;
+    if (!a) return;
+    arrastre = null;
+    pilas.forEach((pl) => pl.classList.remove("encima"));
+    filas[yo].classList.remove("encima");
+    if (!a.movio) {
+      a.fantasma.remove(); a.origen.classList.remove("levantada");
+      const v = fuente.vista();
+      if (a.tipo === "mazo" && v.trabado && !v.trabado.listos[yo]) { enviar({ t: "destrabar" }); return; }
+      if (performance.now() - avisoArrastre > 4000) {
+        avisoArrastre = performance.now();
+        mostrarAviso(a.tipo === "carta" ? "Arrastrala hasta una pila" : (v.mano[yo].includes(null) ? "Arrastrá del mazo a un hueco de tu fila" : "Tu fila está completa"));
+      }
+      return;
+    }
+    if (a.tipo === "carta") {
+      const p = pilas.findIndex((pl) => dentro(pl.getBoundingClientRect(), e.clientX, e.clientY, 18));
+      if (p < 0) {
+        // sobre otra carta de la fila: si es del mismo número, se apilan en ese lugar
+        const k = slots[yo].findIndex((n, q) => q !== a.i && dentro(n.getBoundingClientRect(), e.clientX, e.clientY, 4));
+        const v = fuente.vista();
+        if (k >= 0 && v.mano[yo][k]) {
+          a.fantasma.remove(); a.origen.classList.remove("levantada");
+          enviar({ t: "juntar", desde: a.i, hacia: k });
+          return;
+        }
+        volverAlLugar(a); return;
+      }
+      soltado = { rect: a.fantasma.getBoundingClientRect(), t: performance.now() };
+      a.fantasma.remove();
+      a.origen.classList.remove("levantada");
+      enviar({ t: "poner", carta: a.i, pila: p });
+      return;
+    }
+    // del mazo a la fila: al hueco que está debajo, o al primero libre
+    const v = fuente.vista();
+    if (!dentro(filas[yo].getBoundingClientRect(), e.clientX, e.clientY, 14)) { volverAlLugar(a); return; }
+    let i = slots[yo].findIndex((n, k) => !v.mano[yo][k] && dentro(n.getBoundingClientRect(), e.clientX, e.clientY, 6));
+    if (i < 0) i = v.mano[yo].findIndex((c) => !c);
+    a.fantasma.remove();
+    if (i < 0) { mostrarAviso("Tu fila está completa"); return; }
+    enviar({ t: "reponer", carta: i });
+  }
+  function cancelar() { if (arrastre) { const a = arrastre; arrastre = null; volverAlLugar(a); } }
+
+  slots[yo].forEach((n, i) => n.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    sonido.despertar();
+    if (fuente.vista().mano[yo][i]) empezar(e, "carta", i);
+  }));
+  mazoMio.addEventListener("pointerdown", (e) => { e.preventDefault(); sonido.despertar(); empezar(e, "mazo", null); });
+  for (const n of [...slots[yo], mazoMio]) {
+    n.addEventListener("pointermove", mover);
+    n.addEventListener("pointerup", soltar);
+    n.addEventListener("pointercancel", cancelar);
+    n.addEventListener("lostpointercapture", () => { if (arrastre && arrastre.origen === n) cancelar(); });
+  }
+
   const cantar = () => {
     const v = fuente.vista();
     // si la pareja se acaba de tapar, mandamos igual el id que veías para que el juego explique qué pasó
     const visto = v.coincidencia ? v.coincidencia.id : (performance.now() - S.vistoT < 1500 ? S.vistoId : null);
     enviar({ t: "chin", visto });
   };
-
-  pilas.forEach((p, i) => p.addEventListener("pointerdown", (e) => { e.preventDefault(); poner(i); }));
-  mazoMio.addEventListener("pointerdown", (e) => { e.preventDefault(); voltear(); });
   sol.addEventListener("pointerdown", (e) => { e.preventDefault(); cantar(); });
   const teclas = (e) => {
     if (e.repeat) return;
     if (e.code === "Space") { e.preventDefault(); cantar(); }
-    else if (e.code === "ArrowLeft" || e.code === "KeyA") poner(0);
-    else if (e.code === "ArrowRight" || e.code === "KeyD" || e.code === "KeyS") poner(1);
-    else if (e.code === "ArrowDown" || e.code === "KeyW") voltear();
   };
   addEventListener("keydown", teclas);
 
@@ -174,7 +275,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     pila.append(n);
     const ll = llegadas[p];
     if (ll) {
-      const a = volar(carta, ll.de, n, { rot });
+      const a = volar(carta, ll.de, n, { rot, girar: ll.girar !== false });
       a.finished.then(() => { n.classList.add("asentada"); setTimeout(() => n.classList.remove("asentada"), 200); }).catch(() => {});
       viejo.forEach((v) => setTimeout(() => v.remove(), dur(240)));
     } else viejo.forEach((v) => v.remove());
@@ -207,15 +308,30 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     const cantaron = ev.some((e) => e.t === "chin");
     for (const e of ev) {
       switch (e.t) {
-        case "voltear":
-          if (!ev.some((x) => x.t === "poner" && x.jugador === e.jugador)) sonido.play("carta");
-          break;
         case "poner": {
-          const rect = (S.mano[e.jugador] === e.carta ? manos[e.jugador] : mazos[e.jugador]).getBoundingClientRect();
-          llegadas[e.pila] = { de: rect };
-          sonido.play(e.jugador === yo ? "poner" : "poner");
+          const mio = e.jugador === yo && soltado && performance.now() - soltado.t < 1500;
+          llegadas[e.pila] = { de: mio ? soltado.rect : (slots[e.jugador][e.lugar] || mazos[e.jugador]).getBoundingClientRect(), girar: !mio };
+          if (e.jugador === yo) soltado = null;
+          sonido.play("poner");
           break;
         }
+        case "reponer":
+          if (e.jugador !== yo) sonido.play("carta");
+          break;
+        case "juntar":
+          sonido.play("poner");
+          break;
+        case "listo":
+          mostrarAviso(e.jugador === yo ? `Esperando que ${nombres[rv]} toque su mazo…` : `${nombres[rv]} ya tocó su mazo: tocá el tuyo`);
+          break;
+        case "ronda":
+        case "destrabe":
+          e.cartas.forEach((c, j) => { if (c) llegadas[j] = { de: mazos[j].getBoundingClientRect() }; });
+          cancelar();
+          sonido.play("carta");
+          if (e.t === "destrabe") mostrarAviso(e.como === "mezcla" ? "Sin mazos: se mezclaron las pilas" : "¡Una de cada mazo!");
+          else if (e.n > 1) setTimeout(() => mostrarAviso("Ronda nueva: se completa la mano y va una a cada pila"), dur(700));
+          break;
         case "coincidencia":
           sonido.play("coincidencia");
           reaccionar(caraMia, "concentrado", 1400); reaccionar(caraRival, "concentrado", 1400);
@@ -243,7 +359,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
           break;
         case "revancha":
           yoQuiero = false; rivalQuiere = false;
-          fin.hidden = true; S.fin = false; S.tope = [null, null]; S.mano = [null, null]; S.coincId = null;
+          fin.hidden = true; S.fin = false; S.tope = [null, null]; S.coincId = null; cancelar();
           pilas.forEach((p) => p.querySelectorAll(".tope").forEach((t) => t.remove()));
           reaccion.suma = 0; reaccion.n = 0;
           break;
@@ -256,18 +372,34 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   function pintar(v) {
     // contadores
     for (const j of [0, 1]) {
-      if (S.cartas[j] !== v.cartas[j]) { tween(cuentas[j], S.cartas[j] ?? v.cartas[j], v.cartas[j], 380); S.cartas[j] = v.cartas[j]; }
+      if (S.cartas[j] !== v.cartas[j]) {
+        tween(cuentas[j], S.cartas[j] ?? v.cartas[j], v.cartas[j], 380);
+        const subio = S.cartas[j] !== null && v.cartas[j] > S.cartas[j];
+        totales[j].classList.remove("late", "sube"); void totales[j].offsetWidth;
+        if (S.cartas[j] !== null) totales[j].classList.add(subio ? "sube" : "late");
+        totales[j].classList.toggle("poquitas", v.cartas[j] <= 10);
+        S.cartas[j] = v.cartas[j];
+      }
+      enMazoN[j].textContent = v.enMazo[j];
       mazos[j].classList.toggle("vacio", v.enMazo[j] === 0);
       mazos[j].querySelector(".c1").style.display = v.enMazo[j] > 0 ? "" : "none";
       mazos[j].querySelector(".c2").style.display = v.enMazo[j] > 8 ? "" : "none";
       mazos[j].querySelector(".c3").style.display = v.enMazo[j] > 20 ? "" : "none";
     }
-    // cartas dadas vuelta
+    // las manos (boca arriba: se ven las dos)
     for (const j of [0, 1]) {
-      if (S.mano[j] !== v.mano[j]) {
-        manos[j].innerHTML = v.mano[j] ? `<div class="carta">${frente(v.mano[j])}</div>` : "";
-        if (v.mano[j] && !QUIETO) manos[j].firstElementChild.animate([{ transform: "rotateY(85deg) scale(.9)" }, { transform: "none" }], { duration: 150, easing: "ease-out" });
-        S.mano[j] = v.mano[j];
+      for (let i = 0; i < MANO; i++) {
+        const c = v.mano[j][i] ?? null;
+        const ap = (c && v.apiladas?.[j]?.[i]) || 0;
+        if (S.mano[j][i] === c && S.apil[j][i] === ap) continue;
+        const n = slots[j][i];
+        const nueva = S.mano[j][i] !== c;
+        n.innerHTML = c ? `<div class="carta">${frente(c)}</div>${ap ? `<b class="cuantas">×${ap + 1}</b>` : ""}` : "";
+        n.classList.toggle("vacio", !c);
+        n.dataset.apil = Math.min(ap, 3);
+        if (j === yo) n.setAttribute("aria-label", c ? (ap ? `${ap + 1} cartas de ${c.split("-")[0]}` : nombreCarta(c)) : "Lugar vacío");
+        if (c && nueva && !QUIETO) n.firstElementChild.animate([{ transform: "translateY(14px) scale(.9)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 180, easing: "ease-out" });
+        S.mano[j][i] = c; S.apil[j][i] = ap;
       }
     }
     // pilas
@@ -287,7 +419,10 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     sol.setAttribute("aria-disabled", par ? "false" : "true");
     if (par) { S.vistoId = v.coincidencia.id; S.vistoT = performance.now(); }
     S.par = par;
-    mazoMio.classList.toggle("pide", v.mano[yo] === null && v.cartas[yo] > 0 && v.fase === "jugando" && fuente.ahora() >= v.arranca);
+    // trabados: se marcan los mazos hasta que cada uno toca el suyo
+    const tr = v.fase === "jugando" ? v.trabado : null;
+    mazos.forEach((m, j) => { m.classList.toggle("pide", !!tr && !tr.listos[j]); m.classList.toggle("listo", !!tr && tr.listos[j]); });
+    if (!!tr !== S.trabado) { S.trabado = !!tr; if (tr && !tr.listos[yo]) mostrarAviso("Nadie puede tirar: tocá tu mazo"); }
     mesa.dataset.estado = v.fase;
   }
 

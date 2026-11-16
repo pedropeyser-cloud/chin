@@ -7,7 +7,7 @@ import { crearLocal } from "./local.js";
 export const chin = {
   ...motor.juego,
   bot,
-  descripcion: "Dos pilas, dos mazos, un solo grito. Gana el que más rápido canta CHIN.",
+  descripcion: "Escalera para arriba o para abajo en dos pilas. Mismo número arriba: CHIN.",
   estado: "listo",
   /** ctx: { fuente?, dificultad?, salir, otraDificultad } — sin `fuente` juega contra el bot en este navegador. */
   montar(contenedor, ctx = {}) {

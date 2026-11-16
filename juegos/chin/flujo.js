@@ -32,11 +32,11 @@ export function menu(app, ctx) {
         <button class="boton amigo">Invitar a un amigo por link</button>
       </div>
       <details class="reglas"><summary>Cómo se juega</summary><ul>
-        <li>Cada uno tiene su mazo español completo, boca abajo.</li>
-        <li>Tocá una pila para dar vuelta tu carta y ponerla ahí. No hay turnos: gana el más rápido.</li>
-        <li>Cuando las cartas de arriba de las dos pilas son iguales (mismo número y palo), el sol se prende: tocalo para cantar CHIN.</li>
-        <li>El que canta primero gana y el otro se lleva las dos pilas. Si el rival movió antes, ya no vale.</li>
-        <li>Gana el primero que se queda sin cartas. En la compu: espacio = CHIN, ← y → = pilas.</li>
+        <li>Cada uno tiene su mazo boca abajo y 5 cartas boca arriba en la mano. Al empezar, va una carta del mazo de cada uno a cada pila.</li>
+        <li>Sin turnos, arrastrás cartas de tu fila a cualquier pila si son la que sigue o la anterior: sobre un 12 va un 11 o un 1. Los huecos se llenan arrastrando del mazo a la fila.</li>
+        <li>Cuando arriba de las dos pilas queda el mismo número (el palo no importa), el sol se prende: tocalo para cantar CHIN. El otro se lleva las dos pilas y arranca otra ronda.</li>
+        <li>Si nadie puede tirar, se marcan los mazos: cuando los dos tocan el suyo, va una de cada mazo a cada pila. Gana el primero que se queda sin cartas.</li>
+        <li>La rapidez de la mano cuenta: todo se arrastra. En la compu, espacio = CHIN.</li>
       </ul></details>
       <button class="boton suave volver">← Volver al inicio</button>
     </main>`;

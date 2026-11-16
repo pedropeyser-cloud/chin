@@ -107,3 +107,51 @@
 .pano[data-pano="marmol"] { background: repeating-linear-gradient(115deg, rgba(255,255,255,.05) 0 2px, transparent 2px 40px), radial-gradient(ellipse at 50% 42%, #2a2c30, #141518 72%); border-color: #3a3c42; }
 .pano[data-pano="noche"] { background: radial-gradient(ellipse at 50% 42%, #1c2640, #0e1220 72%); border-color: #232d4a; }
 .pano[data-pano="ceniza"] { background: radial-gradient(ellipse at 50% 42%, #3c3a36, #23221f 72%); border-color: #4a4742; }
+
+/* manos de 5 boca arriba: la mía abajo (se toca), la del rival arriba (chica) */
+.mesa { --hw: clamp(50px, min(16.5vw, 11.5dvh), 92px); }
+.mano-fila { display: flex; justify-content: center; gap: clamp(4px, 1.6vw, 10px); padding: 8px 12px; position: relative; z-index: 2; }
+.mano-fila .mano-slot { width: var(--hw); border: 0; padding: 0; background: none; border-radius: 8px; position: relative; perspective: none; }
+.mano-fila .mano-slot.vacio { outline: 2px dashed rgba(235,228,212,.12); outline-offset: -2px; }
+.mia-fila .mano-slot { cursor: pointer; touch-action: none; transition: transform .1s; }
+.mia-fila .mano-slot:active .carta { transform: scale(.96); }
+.mia-fila .mano-slot.elegida { transform: translateY(-12px); }
+.mia-fila .mano-slot.elegida .carta { box-shadow: 0 0 0 3px var(--ambar), 0 10px 18px rgba(0,0,0,.6); }
+.rival-fila { padding-top: 2px; padding-bottom: 6px; }
+.rival-fila .mano-slot.mini { width: calc(var(--hw) * .6); }
+.rival-fila .carta { box-shadow: 0 3px 7px rgba(0,0,0,.5); }
+.pila.destino .hueco, .pila.destino .tope { box-shadow: 0 0 0 3px rgba(240,169,59,.85), 0 0 18px 4px rgba(240,169,59,.35); }
+.mio-mazo { cursor: default; }
+@media (max-height: 640px) { .mesa { --hw: clamp(44px, min(15vw, 10.5dvh), 80px); } .mano-fila { padding-top: 4px; padding-bottom: 4px; } }
+@media (prefers-reduced-motion: reduce) { .mia-fila .mano-slot { transition: none; } }
+.franja.arriba { z-index: 4; }   /* la bandeja de reacciones va por encima de las cartas del rival */
+
+/* arrastre: la carta sigue al dedo; se suelta sobre una pila o, desde el mazo, sobre la fila */
+.carta.arrastre { position: absolute; z-index: 26; pointer-events: none; box-shadow: 0 14px 28px rgba(0,0,0,.6); }
+.mia-fila .mano-slot.levantada .carta { opacity: .22; }
+.mia-fila .mano-slot { cursor: grab; }
+.mio-mazo { cursor: grab; touch-action: none; }
+.pila.encima .tope, .pila.encima .hueco { box-shadow: 0 0 0 3px var(--papel), 0 0 22px 6px rgba(235,228,212,.35); }
+.mia-fila.encima .mano-slot.vacio { outline-color: rgba(240,169,59,.8); }
+/* trabados: se marcan los mazos hasta que cada uno toca el suyo */
+.mazo.pide::after { content: ""; position: absolute; inset: -6px; border-radius: 10px; border: 3px solid var(--ambar); box-shadow: 0 0 18px 4px rgba(240,169,59,.5); animation: pide .9s ease-in-out infinite; pointer-events: none; z-index: 4; }
+.mazo.listo::after { content: "✓"; position: absolute; right: -8px; top: -8px; width: 22px; height: 22px; border-radius: 50%; background: var(--ambar); color: var(--tinta); font-weight: 800; font-size: 14px; display: grid; place-items: center; z-index: 4; }
+@media (prefers-reduced-motion: reduce) { .mazo.pide::after { animation: none; } }
+
+/* cartas apiladas del mismo número en un lugar de la fila */
+.mano-fila .mano-slot[data-apil="1"] .carta { box-shadow: 3px -3px 0 0 #d8d0bd, 3px -3px 0 1px rgba(0,0,0,.35), 0 4px 10px rgba(0,0,0,.5); }
+.mano-fila .mano-slot[data-apil="2"] .carta { box-shadow: 3px -3px 0 0 #d8d0bd, 3px -3px 0 1px rgba(0,0,0,.35), 6px -6px 0 0 #cbc3af, 6px -6px 0 1px rgba(0,0,0,.35), 0 4px 10px rgba(0,0,0,.5); }
+.mano-fila .mano-slot[data-apil="3"] .carta { box-shadow: 3px -3px 0 0 #d8d0bd, 3px -3px 0 1px rgba(0,0,0,.35), 6px -6px 0 0 #cbc3af, 6px -6px 0 1px rgba(0,0,0,.35), 9px -9px 0 0 #bfb7a2, 9px -9px 0 1px rgba(0,0,0,.35), 0 4px 10px rgba(0,0,0,.5); }
+.cuantas { position: absolute; right: -6px; top: -10px; z-index: 3; background: var(--ambar); color: var(--tinta); font-family: Plex; font-size: 12px; font-weight: 700; padding: 1px 6px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,.5); pointer-events: none; }
+.rival-fila .cuantas { font-size: 10px; padding: 0 4px; top: -7px; right: -5px; }
+
+/* cartas en poder de cada uno: siempre a la vista */
+.total { flex: none; display: grid; justify-items: center; line-height: .85; min-width: 52px; }
+.total b { font-family: Caveat; font-weight: 700; font-size: clamp(34px, 9vw, 44px); color: var(--papel); font-variant-numeric: tabular-nums; }
+.total small { font-family: Plex; font-size: 10px; color: var(--gris); letter-spacing: .04em; }
+.total.poquitas b { color: var(--ambar); }
+.total.late b { animation: late .35s ease-out; }
+.total.sube b { animation: sube .6s ease-out; }
+@keyframes late { 40% { transform: scale(1.25); } }
+@keyframes sube { 30% { transform: scale(1.35); color: #e2675a; } }
+@media (prefers-reduced-motion: reduce) { .total.late b, .total.sube b { animation: none; } }

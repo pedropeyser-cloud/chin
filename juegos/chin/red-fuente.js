@@ -26,8 +26,10 @@ const idOk = (x) => (typeof x === "string" && /^[0-9a-f-]{36}$/.test(x) ? x : nu
 
 function accionLimpia(a) {
   if (!a || typeof a !== "object") return null;
-  if (a.t === "voltear") return { t: "voltear" };
-  if (a.t === "poner" && (a.pila === 0 || a.pila === 1)) return { t: "poner", pila: a.pila };
+  if (a.t === "poner" && (a.pila === 0 || a.pila === 1) && Number.isInteger(a.carta) && a.carta >= 0 && a.carta < 5) return { t: "poner", carta: a.carta, pila: a.pila };
+  if (a.t === "reponer" && Number.isInteger(a.carta) && a.carta >= 0 && a.carta < 5) return { t: "reponer", carta: a.carta };
+  if (a.t === "destrabar") return { t: "destrabar" };
+  if (a.t === "juntar" && [a.desde, a.hacia].every((x) => Number.isInteger(x) && x >= 0 && x < 5) && a.desde !== a.hacia) return { t: "juntar", desde: a.desde, hacia: a.hacia };
   if (a.t === "chin") return { t: "chin", visto: Number.isInteger(a.visto) ? a.visto : null };
   return null;
 }
@@ -39,19 +41,22 @@ const num = (x) => (Number.isFinite(x) ? x : 0);
 const lado = (x) => (x === 0 || x === 1 ? x : 0);
 const cartaOk = (c) => (typeof c === "string" && /^([1-9]|1[0-2])-(espada|basto|oro|copa)$/.test(c) ? c : null);
 const par = (a, f) => [f(a?.[0]), f(a?.[1])];
+const manoOk = (m) => Array.from({ length: 5 }, (_, i) => cartaOk(Array.isArray(m) ? m[i] : null));
 /** Vista del anfitrión → vista con solo los campos y tipos que la pantalla espera. */
 export function vistaLimpia(v) {
   const pilas = [0, 1].map((i) => ({ tope: cartaOk(v.pilas?.[i]?.tope), n: ent(v.pilas?.[i]?.n, 400) }));
   const c = v.coincidencia;
   return {
     juego: "chin", yo: 1, nombres: ["", ""],
-    fase: v.fase === "fin" ? "fin" : "jugando",
+    fase: v.fase === "fin" ? "fin" : "jugando", ronda: ent(v.ronda, 1e6),
     ganador: v.ganador === 0 || v.ganador === 1 ? v.ganador : null,
     arranca: num(v.arranca), ventanaFinal: num(v.ventanaFinal),
     cartas: par(v.cartas, (x) => ent(x, 400)), enMazo: par(v.enMazo, (x) => ent(x, 400)),
-    mano: par(v.mano, cartaOk), pilas,
+    mano: par(v.mano, manoOk), pilas,
+    apiladas: par(v.apiladas, (f) => Array.from({ length: 5 }, (_, i) => ent(Array.isArray(f) ? f[i] : 0, 48))),
     coincidencia: c && Number.isInteger(c.id) ? { id: c.id, t: num(c.t), carta: cartaOk(c.carta) } : null,
     finPendiente: v.finPendiente && typeof v.finPendiente === "object" ? { jugador: lado(v.finPendiente.jugador), hasta: num(v.finPendiente.hasta) } : null,
+    trabado: v.trabado && typeof v.trabado === "object" ? { desde: num(v.trabado.desde), listos: par(v.trabado.listos, (x) => x === true) } : null,
     chins: par(v.chins, (x) => ent(x, 400)), llevadas: par(v.llevadas, (x) => ent(x, 4000)),
     ultimo: null, seq: ent(v.seq, 1e9), acciones: [],
   };
@@ -62,8 +67,12 @@ export function eventosLimpios(ev) {
   for (const e of Array.isArray(ev) ? ev.slice(0, 20) : []) {
     if (!e || typeof e !== "object") continue;
     switch (e.t) {
-      case "voltear": out.push({ t: "voltear", jugador: lado(e.jugador), carta: cartaOk(e.carta) }); break;
-      case "poner": out.push({ t: "poner", jugador: lado(e.jugador), carta: cartaOk(e.carta), pila: lado(e.pila) }); break;
+      case "poner": out.push({ t: "poner", jugador: lado(e.jugador), carta: cartaOk(e.carta), pila: lado(e.pila), lugar: ent(e.lugar, 4), sube: cartaOk(e.sube) }); break;
+      case "juntar": out.push({ t: "juntar", jugador: lado(e.jugador), desde: ent(e.desde, 4), hacia: ent(e.hacia, 4), carta: cartaOk(e.carta), n: ent(e.n, 48) }); break;
+      case "reponer": out.push({ t: "reponer", jugador: lado(e.jugador), carta: cartaOk(e.carta), lugar: ent(e.lugar, 4) }); break;
+      case "listo": out.push({ t: "listo", jugador: lado(e.jugador) }); break;
+      case "ronda": out.push({ t: "ronda", n: ent(e.n, 1e6), cartas: par(e.cartas, cartaOk), arranca: num(e.arranca) }); break;
+      case "destrabe": out.push({ t: "destrabe", cartas: par(e.cartas, cartaOk), como: ["mazo", "mezcla", "mano"].includes(e.como) ? e.como : "mazo", topes: par(e.topes, cartaOk) }); break;
       case "coincidencia": out.push({ t: "coincidencia", id: ent(e.id, 1e9), carta: cartaOk(e.carta) }); break;
       case "se_rompio": out.push({ t: "se_rompio", id: ent(e.id, 1e9), por: lado(e.por) }); break;
       case "chin": out.push({ t: "chin", jugador: lado(e.jugador), perdedor: lado(e.perdedor), reaccion: Math.max(0, Math.min(60000, num(e.reaccion))) }); break;

@@ -1,14 +1,16 @@
 // Rival de práctica para CHIN. Sin reloj propio: decide mirando `ahora` y el estado,
 // y la misma situación da la misma decisión (azar reproducible a partir de la semilla de la partida).
-// Tiene tiempo de reacción humano y variable, ritmo propio para dar vuelta cartas y a veces no ve la pareja.
+// Tiene tiempo de reacción humano y variable, ritmo propio para tirar y reponer cartas, y a veces no ve el CHIN.
 // Nunca canta CHIN sin pareja: el juego no lo deja.
 
-import { mismaCarta } from "./motor.js";
+import { acciones, numero } from "./motor.js";
 
+// reaccion: ms para ver el CHIN · ritmo: ms entre una carta y la siguiente · mira: ms que tarda en leer una carta nueva
+// distraido: chance de no ver el CHIN a tiempo · apunta: chance de armar el CHIN a propósito cuando puede
 export const DIFICULTADES = {
-  tranquilo:  { reaccion: [850, 1500], ritmo: [650, 1100], distraido: 0.12, tapa: 0.35, apunta: 0.35 },
-  rapido:     { reaccion: [480, 850],  ritmo: [420, 700],  distraido: 0.06, tapa: 0.6,  apunta: 0.7 },
-  implacable: { reaccion: [290, 440],  ritmo: [300, 460],  distraido: 0.02, tapa: 0.85, apunta: 0.95 }
+  tranquilo:  { reaccion: [850, 1500], ritmo: [900, 1500], mira: [500, 800], repone: [700, 1100], traba: [900, 1600], distraido: 0.12, apunta: 0.3 },
+  rapido:     { reaccion: [480, 850],  ritmo: [550, 900],  mira: [300, 500], repone: [420, 700],  traba: [550, 950],  distraido: 0.06, apunta: 0.65 },
+  implacable: { reaccion: [290, 440],  ritmo: [340, 560],  mira: [200, 320], repone: [260, 420],  traba: [320, 520],  distraido: 0.02, apunta: 0.95 }
 };
 
 function hash(...partes) {
@@ -19,9 +21,10 @@ function hash(...partes) {
   return (h >>> 0) / 4294967296;
 }
 const entre = ([a, b], u) => a + (b - a) * u;
+const tope = (p) => (p.length ? p[p.length - 1] : null);
 
 /**
- * Qué hace el bot `jugador` en `ahora`: una acción de `acciones()` o `null` si todavía no le toca.
+ * Qué hace el bot `jugador` en `ahora`: una acción válida o `null` si todavía no le toca.
  * `estado` es el estado completo (la pantalla del bot vive en el anfitrión).
  */
 export function bot(estado, jugador, ahora, dificultad = "rapido") {
@@ -34,36 +37,40 @@ export function bot(estado, jugador, ahora, dificultad = "rapido") {
   const c = s.coincidencia;
   if (c) {
     const distraido = hash(...clave, "ve", c.id) < d.distraido;
-    // el que la formó la vio nacer: reacciona más rápido; el distraído se da cuenta mucho después
     const base = entre(d.reaccion, hash(...clave, "rx", c.id));
     const demora = distraido ? base * 2.6 + 700 : base;
-    if (ahora - c.t >= demora) return { t: "chin", visto: c.id };
+    return ahora - c.t >= demora ? { t: "chin", visto: c.id } : null;
   }
-
   if (s.finPendiente) return null;
-  const mazo = s.mazos[jugador].length;
-  const mano = s.mano[jugador];
-  if (mazo === 0 && mano === null) return null;
 
-  // 2) ritmo propio entre una jugada y la siguiente
-  const ritmo = entre(d.ritmo, hash(...clave, "rt", s.jugadas[jugador]));
-  if (ahora - s.ultimaT[jugador] < ritmo) return null;
-
-  if (mano === null) return { t: "voltear" };
-
-  // 3) elegir pila: si mi carta es igual a una de arriba, la pongo en la otra y armo la pareja (me adelanto);
-  //    si el rival tiene dada vuelta una carta igual a una de arriba, tapo esa pila
-  const topes = s.pilas.map((p) => (p.length ? p[p.length - 1] : null));
-  for (const p of [0, 1]) {
-    if (mismaCarta(mano, topes[p]) && hash(...clave, "ap", s.jugadas[jugador]) < d.apunta) {
-      return { t: "poner", pila: 1 - p };
-    }
+  // trabados: toca su mazo marcado después de darse cuenta
+  if (s.trabado) {
+    if (s.trabado.listos[jugador]) return null;
+    return ahora - s.trabado.desde >= entre(d.traba, hash(...clave, "tb", s.seq)) ? { t: "destrabar" } : null;
   }
-  const rival = s.mano[1 - jugador];
-  for (const p of [0, 1]) {
-    if (mismaCarta(rival, topes[p]) && hash(...clave, "tp", s.jugadas[jugador]) < d.tapa) {
-      return { t: "poner", pila: p };
-    }
+
+  // 2) ritmo propio entre una carta y la siguiente, y un rato para leer la mesa cuando cambia lo de arriba
+  const n = s.jugadas[jugador];
+  if (ahora - s.ultimaT[jugador] < entre(d.ritmo, hash(...clave, "rt", n))) return null;
+  const cambio = Math.max(s.arranca, s.ultimaT[1 - jugador]);
+  if (ahora - cambio < entre(d.mira, hash(...clave, "mi", s.seq))) return null;
+
+  const todas = acciones(s, jugador, ahora);
+  const posibles = todas.filter((a) => a.t === "poner");
+  const huecos = todas.filter((a) => a.t === "reponer");
+  const juntar = todas.filter((a) => a.t === "juntar");
+  if (!posibles.length) {
+    // nada para tirar: arrastra una del mazo a un hueco de la fila (lleva su tiempo);
+    // sin huecos, apila dos del mismo número para hacer lugar
+    if (ahora - s.ultimaT[jugador] < entre(d.repone, hash(...clave, "rp", n))) return null;
+    if (huecos.length) return huecos[0];
+    if (juntar.length && s.mazos[jugador].length) return juntar[0];
+    return null;
   }
-  return { t: "poner", pila: hash(...clave, "pl", s.jugadas[jugador]) < 0.5 ? 0 : 1 };
+
+  // 3) si puede dejar las dos de arriba con el mismo número, a veces lo hace a propósito (y canta él primero)
+  const topes = s.pilas.map(tope);
+  const arma = posibles.filter((a) => numero(s.mano[jugador][a.carta]) === numero(topes[1 - a.pila]));
+  if (arma.length && hash(...clave, "ap", n) < d.apunta) return arma[0];
+  return posibles[Math.floor(hash(...clave, "pl", n) * posibles.length)];
 }
