@@ -67,6 +67,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin, pieFin 
   const mesa = el(`
   <div class="mesa" data-estado="espera">
     <header class="franja arriba">
+      <button type="button" class="icono salir-btn" aria-label="Salir de la partida" title="Salir de la partida">←</button>
       <div class="cara-slot rival-cara"><span class="burbuja rival-burbuja"></span></div>
       <div class="quien"><span class="n-rival"></span><button type="button" class="red-punto" hidden aria-label="Conexión"></button><small class="sub-rival">rival</small></div>
       <div class="mazo rival-mazo" title="Cartas que le quedan al rival"></div>
@@ -93,6 +94,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin, pieFin 
     <div class="cuenta" aria-hidden="true"></div>
     <div class="corte" hidden>Se cortó la conexión. Reintentando…</div>
     <div class="fin" hidden></div>
+    <div class="fin dejar" hidden role="dialog" aria-modal="true" aria-labelledby="dejar-tit"></div>
   </div>`);
   cont.append(mesa);
   const $ = (s) => mesa.querySelector(s);
@@ -679,8 +681,51 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin, pieFin 
     else if (a === "dificultad") otraDificultad?.();
     else if (a === "salir") {
       // en red, avisarle al otro que no hay revancha antes de cortar
-      if (!fuente.esLocal) { fuente.declinar?.(); setTimeout(() => salir?.(), 200); } else salir?.();
+      irme();
     }
+  });
+
+  // ---------- salir en mitad de la partida ----------
+  const dejar = $(".dejar");
+  function irme() {
+    // en red, avisarle al otro antes de cortar: que no se quede esperando una reconexión
+    if (!fuente.esLocal && !rivalSeFue) { fuente.declinar?.(); fuente.irse?.(); setTimeout(() => salir?.(), 200); } else salir?.();
+  }
+  function cerrarDejar() { dejar.hidden = true; dejar.innerHTML = ""; }
+  function preguntarDejar() {
+    if (!fin.hidden || rivalSeFue) { irme(); return; }   // terminada o sin rival: se sale directo
+    cancelar();
+    const quien = esc(nombres[rv]);
+    dejar.innerHTML = `
+      <div class="fin-caja">
+        <p class="fin-titulo chico" id="dejar-tit">¿Te vas?</p>
+        <p class="fin-sub">${fuente.esLocal ? "La partida queda sin terminar." : `La partida queda sin terminar y <b>${quien}</b> se entera de que te fuiste.`}</p>
+        <div class="fin-botones">
+          <button class="boton primario" data-d="seguir">Seguir jugando</button>
+          <button class="boton suave" data-d="irme">Salir de la partida</button>
+        </div>
+      </div>`;
+    dejar.hidden = false;
+    dejar.querySelector('[data-d="seguir"]').focus();
+  }
+  function seFueElRival() {
+    cerrarDejar();
+    clearInterval(cuentaFin);
+    const quien = esc(nombres[rv]);
+    dejar.innerHTML = `
+      <div class="fin-caja">
+        <p class="fin-titulo chico" id="dejar-tit">Se fue</p>
+        <p class="fin-sub"><b>${quien}</b> dejó la mesa.</p>
+        <div class="fin-botones"><button class="boton primario" data-d="irme">Volver al inicio</button></div>
+      </div>`;
+    dejar.hidden = false;
+    dejar.querySelector('[data-d="irme"]').focus();
+  }
+  $(".salir-btn").addEventListener("click", preguntarDejar);
+  dejar.addEventListener("click", (e) => {
+    const d = e.target.closest("[data-d]")?.dataset.d;
+    if (d === "seguir") cerrarDejar();
+    else if (d === "irme") irme();
   });
 
   // ---------- cuenta regresiva ----------
@@ -734,7 +779,12 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin, pieFin 
 
   // ---------- conexión (solo en red) ----------
   const corte = $(".corte");
-  const bajaC = fuente.suscribirConexion((estado) => { corte.hidden = estado === "conectado"; });
+  let rivalSeFue = false;
+  const bajaC = fuente.suscribirConexion((estado) => {
+    if (rivalSeFue) return;   // después de irse, los cortes del canal ya no importan
+    if (estado === "se_fue") { rivalSeFue = true; corte.hidden = true; seFueElRival(); return; }
+    corte.hidden = estado === "conectado";
+  });
   // puntito junto al rival: verde = buena (ida y vuelta de menos de 150 ms), ámbar que late = lenta
   const punto = $(".red-punto");
   const UMBRAL_LENTA = 150;

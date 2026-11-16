@@ -291,3 +291,9 @@
   display: grid; gap: 10px; padding: 18px; border-radius: 16px; background: rgba(12,14,18,.95); border: 1px solid rgba(240,169,59,.55); box-shadow: 0 18px 40px rgba(0,0,0,.6); }
 .tutorial-fin-tit { font-family: Caveat; font-weight: 700; font-size: 54px; line-height: .9; color: var(--ambar); }
 .mesa.en-tutorial .franja.arriba { visibility: hidden; }
+
+/* 2026-11-16: salir en mitad de la partida (← arriba a la izquierda) y aviso de que el rival se fue */
+.franja .salir-btn { flex: none; font-size: 24px; line-height: 1; padding: 6px 8px 6px 0; opacity: .8; }
+.franja .salir-btn:hover, .franja .salir-btn:focus-visible { opacity: 1; }
+.fin.dejar { z-index: 36; align-items: center; }
+.fin-titulo.chico { font-size: clamp(52px, 14vw, 72px); color: var(--papel); }

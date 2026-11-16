@@ -177,6 +177,9 @@ export function crearAnfitrion(yo, { cuenta = 3000, formato = 1 } = {}) {
         case "emote":
           if (emoteValido(m.k) && topeE(1)) { b.subsE.forEach((f) => f(m.k, 1)); }
           break;
+        case "me_voy":   // el invitado dejó la mesa a propósito (no es un corte)
+          conectado = false; quieren[0] = quieren[1] = false; b.conexion("se_fue");
+          break;
         default:
       }
     },
@@ -205,6 +208,8 @@ export function crearAnfitrion(yo, { cuenta = 3000, formato = 1 } = {}) {
       quieren[0] = quieren[1] = false;
       emitir([{ t: "no_revancha", jugador: 0 }]);
     },
+    /** Me voy de la mesa: el otro se entera en el momento y no se queda esperando una reconexión. */
+    irse() { try { sala.enviar({ t: "me_voy" }); } catch { /* ya no hay canal */ } },
     /** Lo que mide el anfitrión: ida del invitado en ms (para mostrarlo con honestidad). */
     latencia: () => Math.round(owd),
     destruir() { clearInterval(timer); sala.cerrar(); b.subs.clear(); b.subsE.clear(); b.subsC.clear(); },
@@ -284,6 +289,9 @@ export function entrarComoInvitado(codigo, yo) {
           if (emoteValido(m.k) && topeE(0)) b.subsE.forEach((f) => f(m.k, 0));
           break;
         case "lleno": error?.({ type: "lleno" }); break;
+        case "me_voy":   // el anfitrión dejó la mesa a propósito
+          clearInterval(pingT); clearInterval(vigia); b.conexion("se_fue");
+          break;
         default:
       }
     },
@@ -308,6 +316,7 @@ export function entrarComoInvitado(codigo, yo) {
     emote(k) { if (emoteValido(k)) sala.enviar({ t: "emote", k }); },
     revancha() { sala.enviar({ t: "revancha" }); },
     declinar() { sala.enviar({ t: "no_revancha" }); },
+    irse() { try { sala.enviar({ t: "me_voy" }); } catch { /* ya no hay canal */ } },
     latencia: () => Math.round(rtt / 2),
     destruir() { clearInterval(pingT); clearInterval(vigia); sala.cerrar(); b.subs.clear(); b.subsE.clear(); b.subsC.clear(); },
   };
