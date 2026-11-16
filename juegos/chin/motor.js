@@ -27,6 +27,7 @@ export const MENSAJES = {
   lugar_ocupado: "Ese lugar ya tiene carta.",
   mazo_vacio: "No te quedan cartas en el mazo.",
   otro_numero: "Solo se apilan cartas del mismo número.",
+  pila_llena: "En un lugar entran como mucho 4 cartas iguales.",
   no_trabado: "Todavía hay jugadas: no hace falta dar vuelta del mazo.",
   fin: "La partida terminó."
 };
@@ -77,8 +78,14 @@ function sacarDeFila(s, j, i) {
   s.mano[j][i] = s.debajo[j][i].length ? s.debajo[j][i].pop() : null;
   return c;
 }
-/** ¿`j` tiene dos lugares con el mismo número (los puede juntar para liberar uno)? */
-const puedeJuntar = (s, j) => s.mano[j].some((c, i) => c && s.mano[j].some((d, k) => k !== i && mismoNumero(c, d)));
+/** Como mucho 4 cartas en un lugar de la fila: las que hay de cada número en un mazo (decisión de Pedro). */
+export const TOPE_PILA = 4;
+const enLugar = (s, j, i) => (s.mano[j][i] ? 1 : 0) + s.debajo[j][i].length;
+/** ¿Se puede apilar el lugar `i` de `j` arriba del lugar `k`? (mismo número y sin pasar el tope) */
+const sePuedeJuntar = (s, j, i, k) => i !== k && s.mano[j][i] && mismoNumero(s.mano[j][i], s.mano[j][k])
+  && enLugar(s, j, i) + enLugar(s, j, k) <= TOPE_PILA;
+/** ¿`j` tiene dos lugares que pueda juntar para liberar uno? */
+const puedeJuntar = (s, j) => s.mano[j].some((_, i) => s.mano[j].some((_, k) => sePuedeJuntar(s, j, i, k)));
 export const cartasDe = (s, j) => s.mazos[j].length + enMano(s, j);
 const sinCartas = (s, j) => cartasDe(s, j) === 0;
 
@@ -151,7 +158,7 @@ export function acciones(s, j, ahora = Infinity) {
     s.mano[j].forEach((c, i) => {
       for (const p of [0, 1]) if (encaja(c, tope(s.pilas[p]))) out.push({ t: "poner", carta: i, pila: p });
       if (c === null && s.mazos[j].length) out.push({ t: "reponer", carta: i });
-      s.mano[j].forEach((d, k) => { if (k !== i && c && mismoNumero(c, d)) out.push({ t: "juntar", desde: i, hacia: k }); });
+      s.mano[j].forEach((_, k) => { if (sePuedeJuntar(s, j, i, k)) out.push({ t: "juntar", desde: i, hacia: k }); });
     });
   }
   if (s.trabado && !s.trabado.listos[j]) out.push({ t: "destrabar" });
@@ -274,6 +281,7 @@ export function aplicar(estado, jugador, accion, ahora = 0) {
     const a = estado.mano[jugador][i], b = estado.mano[jugador][k];
     if (!a || !b) return rechazo(estado, "sin_carta");
     if (!mismoNumero(a, b)) return rechazo(estado, "otro_numero");
+    if (enLugar(estado, jugador, i) + enLugar(estado, jugador, k) > TOPE_PILA) return rechazo(estado, "pila_llena");
     const s = structuredClone(estado);
     const ev = [];
     s.seq++;
