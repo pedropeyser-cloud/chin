@@ -204,3 +204,27 @@
   .rival-fila .mano-slot.mini { width: calc(var(--hw) * .86); }
   .mano-fila { gap: clamp(8px, 1.2vw, 16px); }
 }
+
+/* compu ancha (2026-11-16): la mesa ocupa toda la pantalla. Los datos de cada uno (cara, nombre, mazo) van a la columna
+   de la izquierda y el centro queda para las dos filas y el paño, con cartas más grandes. */
+@media (pointer: fine) and (min-width: 1100px) and (min-aspect-ratio: 5/4) {
+  .mesa { max-width: none; margin: 0; display: grid; grid-template-columns: minmax(190px, 1fr) minmax(0, 1120px) minmax(190px, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto; column-gap: 24px; padding: 14px 24px;
+    --hw: clamp(70px, 15.5dvh, 190px); --cw: clamp(80px, 19dvh, 210px); --sol-d: clamp(130px, 25dvh, 270px); --mw: clamp(60px, 11dvh, 130px); }
+  .franja { grid-column: 1; flex-wrap: wrap; align-items: center; align-content: flex-start; gap: 12px; padding: 4px 0; }
+  .franja .quien { flex: 1 1 calc(100% - 80px); }
+  .franja .icono { order: 2; }
+  .franja .mazo { order: 3; margin-right: calc(100% - var(--mw)); }
+  .franja.arriba { grid-row: 1 / 3; align-self: start; padding-top: 6px; }
+  .franja.abajo { grid-row: 2 / 4; align-self: end; align-content: flex-end; padding-bottom: 6px; }
+  .franja.abajo .mazo { order: -1; }
+  .franja .cara-slot { width: 64px; }
+  .quien span { font-size: 22px; }
+  .rival-fila { grid-column: 2; grid-row: 1; padding-top: 4px; }
+  .pano { grid-column: 2; grid-row: 2; margin: 6px 0; }
+  .mia-fila { grid-column: 2; grid-row: 3; }
+  .rival-fila .mano-slot.mini { width: calc(var(--hw) * .86); }
+  .mano-fila { gap: clamp(10px, 1.4vw, 22px); }
+  .emotes-bandeja { left: 0; right: auto; }
+  .marcador { right: auto; left: calc(100% + 32px); }
+}

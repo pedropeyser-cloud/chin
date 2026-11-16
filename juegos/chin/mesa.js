@@ -121,18 +121,29 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
 
   // pantalla completa en la compu: hace falta para ver bien las cartas del rival
   const btnPantalla = $(".pantalla-btn");
+  let salioAPropósito = false, quitarReintento = () => {};
   const puedePantalla = !!document.documentElement.requestFullscreen && matchMedia("(pointer: fine)").matches;
   if (puedePantalla) {
     btnPantalla.hidden = false;
     btnPantalla.addEventListener("click", () => {
-      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-      else pedirPantallaCompleta();
+      if (document.fullscreenElement) { salioAPropósito = true; document.exitFullscreen().catch(() => {}); }
+      else { salioAPropósito = false; pedirPantallaCompleta(); }
     });
-    // si entró sin un clic (link de invitado), la pide en el primer toque sobre la mesa
-    if (!document.fullscreenElement) mesa.addEventListener("pointerdown", (e) => { if (!e.target.closest(".pantalla-btn")) pedirPantallaCompleta(); }, { once: true });
+    // se juega en pantalla completa: si no lo está (entró por link, apretó Esc, el navegador no la dio), la vuelve a pedir
+    // en cualquier toque o tecla sobre la mesa. Solo se queda en ventana si la sacó con el botón ⛶.
+    const reintentar = (e) => { if (!salioAPropósito && !document.fullscreenElement && !e.target.closest?.(".pantalla-btn")) pedirPantallaCompleta(); };
+    mesa.addEventListener("pointerdown", reintentar, true);
+    addEventListener("keydown", reintentar, true);
+    quitarReintento = () => removeEventListener("keydown", reintentar, true);
   }
-  const pintarPantalla = () => { btnPantalla.textContent = document.fullscreenElement ? "🗗" : "⛶"; mesa.classList.toggle("completa", !!document.fullscreenElement); };
-  document.addEventListener("fullscreenchange", pintarPantalla);
+  const pintarPantalla = () => {
+    btnPantalla.textContent = document.fullscreenElement ? "🗗" : "⛶";
+    btnPantalla.setAttribute("aria-label", document.fullscreenElement ? "Salir de pantalla completa" : "Pantalla completa");
+    mesa.classList.toggle("completa", !!document.fullscreenElement);
+  };
+  // la mesa cambia de tamaño: si había una carta en el aire, vuelve a su lugar
+  const alCambiarPantalla = () => { pintarPantalla(); cancelar(); };
+  document.addEventListener("fullscreenchange", alCambiarPantalla);
   pintarPantalla();
 
   const btnSonido = $(".sonido-btn");
@@ -617,7 +628,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   pintar(fuente.vista());
 
   return () => {
-    document.removeEventListener("fullscreenchange", pintarPantalla);
+    document.removeEventListener("fullscreenchange", alCambiarPantalla); quitarReintento();
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     baja(); bajaE(); bajaC(); clearInterval(timerPing); cancelAnimationFrame(raf); removeEventListener("keydown", teclas); document.removeEventListener("pointerdown", cerrarBandeja, true);
     cesar.forEach((f) => f && f()); cont.innerHTML = "";
