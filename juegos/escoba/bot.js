@@ -1,14 +1,16 @@
 // Rival de práctica para la escoba. Sin reloj propio: mira `ahora` y el estado, y la misma situación da la misma
 // decisión (azar reproducible con el número de jugada). Piensa un rato antes de tirar, como una persona.
-//   tranquilo  (Don Tranqui):  levanta lo que ve, a veces se le pasa una jugada y no piensa en lo que deja.
-//   rapido     (Rata):         busca escobas, oros y sietes, y trata de no dejarte la escoba servida.
-//   implacable (El Relámpago): cuenta las cartas que salieron y calcula cuánto arriesga con lo que deja en la mesa.
-import { acciones, valor, numero, palo, mazoCompleto, combinaciones } from "./motor.js";
+//   tranquilo  (Don Tranqui):  levanta lo que ve, se le pasan bastantes jugadas y casi nunca sopla.
+//   rapido     (Rata):         busca escobas, oros y sietes, trata de no dejarte la escoba servida y sopla seguido.
+//   implacable (El Relámpago): cuenta las cartas que salieron, calcula el riesgo de lo que deja y no se le escapa un soplo.
+// `seLePasa`: chance de no ver que podía levantar (tira igual, y ahí le podés soplar).
+// `sopla`: chance de ver el soplo cuando se lo dejás; `soplaEn`: cuánto tarda en cantarlo (ms desde que tiraste).
+import { acciones, soplos, valor, numero, palo, mazoCompleto, combinaciones } from "./motor.js";
 
 export const DIFICULTADES = {
-  tranquilo:  { piensa: [1500, 2600], despiste: 0.3, riesgo: 0 },
-  rapido:     { piensa: [1000, 1800], despiste: 0.06, riesgo: 1 },
-  implacable: { piensa: [800, 1400], despiste: 0, riesgo: 2 },
+  tranquilo:  { piensa: [1500, 2600], seLePasa: 0.3, riesgo: 0, sopla: 0.3, soplaEn: [1300, 2300] },
+  rapido:     { piensa: [1000, 1800], seLePasa: 0.12, riesgo: 1, sopla: 0.75, soplaEn: [800, 1500] },
+  implacable: { piensa: [800, 1400], seLePasa: 0.04, riesgo: 2, sopla: 0.97, soplaEn: [500, 1000] },
 };
 
 function hash(...partes) {
@@ -86,6 +88,11 @@ export function puntaje(estado, jugador, a, nivel = 2) {
   } else {
     quedan.push(a.carta);
     p -= botin([a.carta]) * 0.35;              // lo que regalo si me la levantan
+    // tirar pudiendo levantar: el otro me puede soplar (el que piensa lo cuenta)
+    if (nivel > 0) {
+      const formas = combinaciones(estado.mesa, a.carta);
+      if (formas.length) p -= 0.8 * Math.max(...formas.map((f) => botin([a.carta, ...f]) + 3));
+    }
   }
   if (nivel > 0) {
     const ocultas = noVistas(estado, jugador).filter((c) => c !== a.carta);
@@ -106,20 +113,36 @@ export function elegir(estado, jugador, dificultad = "rapido") {
   const todas = acciones(estado, jugador);
   if (!todas.length) return null;
   if (todas[0].t === "seguir") return todas[0];
-  // despistado: tira cualquier carta, levante o no
-  if (d.despiste && hash(estado.rng, estado.seq, "despiste") < d.despiste) {
-    return todas[Math.floor(hash(estado.rng, estado.seq, "cual") * todas.length)];
-  }
+  // se le pasó: no vio que podía levantar y tira (la mejor tirada que ve); ahí se le puede soplar
+  const seLePaso = d.seLePasa && todas.some((a) => a.levanta.length) && hash(estado.rng, estado.seq, "se le pasa") < d.seLePasa;
+  const candidatas = seLePaso ? todas.filter((a) => !a.levanta.length) : todas;
   let mejor = null, mejorP = -Infinity;
-  for (const a of todas) {
+  for (const a of candidatas) {
     const p = puntaje(estado, jugador, a, d.riesgo) + hash(estado.rng, estado.seq, a.carta, a.levanta.join()) * 0.01;
     if (p > mejorP) { mejorP = p; mejor = a; }
   }
   return mejor;
 }
 
+/** El soplo que haría (la forma que más le conviene) si lo ve; si no lo ve o no hay, null. Mismo estado, misma decisión. */
+export function soploQueVe(estado, jugador, dificultad = "rapido") {
+  const d = DIFICULTADES[dificultad] || DIFICULTADES.rapido;
+  const formas = soplos(estado, jugador);
+  if (!formas.length || hash(estado.rng, estado.seq, jugador, "ve el soplo") >= d.sopla) return null;
+  let mejor = null, mejorP = -Infinity;
+  for (const f of formas) { const p = botin(f) + (f.length === estado.mesa.length ? 1 : 0); if (p > mejorP) { mejorP = p; mejor = f; } }
+  return { t: "soplar", cartas: mejor };
+}
+
 /** Contrato: la jugada del bot si ya pensó lo suficiente; si no, null. */
 export function bot(estado, jugador, ahora, dificultad = "rapido") {
+  const d = DIFICULTADES[dificultad] || DIFICULTADES.rapido;
+  // soplo: primero, antes de jugar su carta (o en el ratito del final de la mano)
+  if ((estado.fase === "jugando" || estado.fase === "ultima") && estado.soplo?.para === jugador) {
+    const s = soploQueVe(estado, jugador, dificultad);
+    if (s) return ahora - estado.turnoDesde >= entre(d.soplaEn, hash(estado.rng, estado.seq, jugador, "sopla en")) ? s : null;
+  }
+  if (estado.fase === "ultima") return null;
   if (estado.fase === "recuento") {
     if (estado.listos[jugador]) return null;
     return ahora - estado.turnoDesde >= 2500 ? { t: "seguir" } : null;

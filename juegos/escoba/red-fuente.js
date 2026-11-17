@@ -13,6 +13,7 @@ const idOk = (x) => (typeof x === "string" && /^[0-9a-f-]{36}$/.test(x) ? x : nu
 function accionLimpia(a) {
   if (!a || typeof a !== "object") return null;
   if (a.t === "seguir") return { t: "seguir" };
+  if (a.t === "soplar" && Array.isArray(a.cartas) && a.cartas.length <= 12 && a.cartas.every(idValido)) return { t: "soplar", cartas: [...a.cartas] };
   if (a.t === "jugar" && idValido(a.carta) && Array.isArray(a.levanta) && a.levanta.length <= 12 && a.levanta.every(idValido)) return { t: "jugar", carta: a.carta, levanta: [...a.levanta] };
   return null;
 }
@@ -36,7 +37,7 @@ function recuentoLimpio(r) {
 export function vistaLimpia(v) {
   return {
     juego: "escoba", yo: 1, nombres: ["", ""],
-    fase: ["jugando", "recuento", "fin"].includes(v.fase) ? v.fase : "jugando",
+    fase: ["jugando", "ultima", "recuento", "fin"].includes(v.fase) ? v.fase : "jugando",
     ganador: lado(v.ganador), meta: ent(v.meta, 99) || 15,
     puntos: par(v.puntos, (x) => ent(x, 999)), manoN: ent(v.manoN, 999), reparte: lado(v.reparte) ?? 0,
     turno: lado(v.turno) ?? 0, turnoDesde: num(v.turnoDesde),
@@ -45,6 +46,8 @@ export function vistaLimpia(v) {
     recuento: recuentoLimpio(v.recuento), listos: par(v.listos, (x) => x === true), recuentoHasta: v.recuentoHasta === null ? null : num(v.recuentoHasta),
     historial: Array.isArray(v.historial) ? v.historial.slice(0, 60).map((h) => ({ mano: ent(h?.mano, 999), total: par(h?.total, (x) => ent(x, 50)), puntos: par(h?.puntos, (x) => ent(x, 999)) })) : [],
     ultimo: v.ultimo && typeof v.ultimo === "object" && idValido(v.ultimo.carta) ? { jugador: lado(v.ultimo.jugador) ?? 0, carta: v.ultimo.carta, levanta: cartas(v.ultimo.levanta, 12), escoba: v.ultimo.escoba === true } : null,
+    soplo: v.soplo && typeof v.soplo === "object" && idValido(v.soplo.carta) ? { carta: v.soplo.carta } : null,
+    cierreHasta: v.cierreHasta === null || v.cierreHasta === undefined ? null : num(v.cierreHasta),
     seq: ent(v.seq, 1e9),
   };
 }
@@ -54,6 +57,8 @@ export function eventosLimpios(ev) {
     if (!e || typeof e !== "object") continue;
     switch (e.t) {
       case "jugada": if (idValido(e.carta)) out.push({ t: "jugada", jugador: lado(e.jugador) ?? 0, carta: e.carta, levanta: cartas(e.levanta, 12), escoba: e.escoba === true }); break;
+      case "soplo": out.push({ t: "soplo", jugador: lado(e.jugador) ?? 0, de: lado(e.de) ?? 0, cartas: cartas(e.cartas, 12) }); break;
+      case "ultima": out.push({ t: "ultima", hasta: num(e.hasta) }); break;
       case "repartir": out.push({ t: "repartir", quedan: ent(e.quedan, 40) }); break;
       case "reparto": out.push({ t: "reparto", mano: ent(e.mano, 999), reparte: lado(e.reparte) ?? 0, mesa: cartas(e.mesa, 4), escobasMesa: ent(e.escobasMesa, 2) }); break;
       case "barrida": out.push({ t: "barrida", jugador: lado(e.jugador) ?? 0, cartas: cartas(e.cartas) }); break;

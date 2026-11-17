@@ -28,6 +28,7 @@ export function crearLocal({ dificultad = "rapido", nombre = "Vos", estilo = {},
     for (const e of ev) {
       if (e.t === "jugada" && e.escoba) decir(e.jugador === 1 ? "escoba" : "escoba_rival", e.jugador === 1 ? 0.7 : 0.5);
       else if (e.t === "jugada" && e.levanta.concat(e.carta).includes("7-oro") && e.levanta.length) decir(e.jugador === 1 ? "siete_oro" : "siete_oro_rival", 0.6);
+      else if (e.t === "soplo") decir(e.jugador === 1 ? "soplo" : "soplado", e.jugador === 1 ? 0.8 : 0.7);
       else if (e.t === "fin") decir(e.ganador === 1 ? "gana" : "pierde");
       else if (e.t === "revancha") setTimeout(() => decir("empieza", 0.8), 600);
     }

@@ -10,11 +10,16 @@
 // 1 por la setenta (más sietes; si empatan, más seises). Empate en cartas, oros o setenta: no lo cobra nadie.
 // Se juega a 15: si los dos llegan en la misma mano gana el que tiene más; si empatan, se juega otra mano.
 // El que reparte se va alternando.
+// SOPLO: si uno tira sin levantar, el que sigue puede soplar hasta que haga su jugada: toca la carta que se tiró y las
+// de la mesa que sumaban 15 con ella, y se las lleva (no es escoba). Si no suman 15 no pasa nada: ni castigo ni aviso,
+// y el motor tampoco dice si había soplo (la vista solo muestra que la ventana está abierta, que es público).
+// Si la última carta de la mano se tira sin levantar, hay `ventanaFinal` ms para soplar antes del recuento.
 
 export const PALOS = ["oro", "copa", "espada", "basto"];
 export const NUMEROS = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12];   // 10 = sota, 11 = caballo, 12 = rey (ids iguales a las del truco)
 export const META = 15;
 export const MANO = 3;
+export const VENTANA_FINAL = 5000;
 
 export const MENSAJES = {
   no_es_tu_turno: "Todavía no es tu turno.",
@@ -23,6 +28,8 @@ export const MENSAJES = {
   no_jugando: "La mano terminó: esperá el recuento.",
   ya_listo: "Ya estás listo: esperando al otro.",
   fin: "La partida terminó.",
+  soplo_no: "",              // soplo que no suma: no se avisa nada (que se dé cuenta la persona)
+  no_soplo: "",
 };
 
 // ---------- cartas ----------
@@ -73,12 +80,14 @@ const copiar = (e) => JSON.parse(JSON.stringify(e));
  * @param {{ nombres?: string[], semilla?: number, ahora?: number, meta?: number, reparte?: 0|1, pausaRecuento?: number, mazo?: string[] }} o
  * `mazo` (solo pruebas): el orden exacto del mazo (se reparte desde el principio).
  */
-export function nuevaPartida({ nombres = ["Vos", "Rival"], semilla, ahora = 0, meta = META, reparte, pausaRecuento = 20000, mazo } = {}) {
+export function nuevaPartida({ nombres = ["Vos", "Rival"], semilla, ahora = 0, meta = META, reparte, pausaRecuento = 20000, ventanaFinal = VENTANA_FINAL, mazo } = {}) {
   const s = {
     juego: "escoba",
     nombres: [...nombres],
     rng: (Number.isFinite(semilla) ? semilla : Math.floor(Math.random() * 2 ** 31)) >>> 0,
-    meta, pausaRecuento,
+    meta, pausaRecuento, ventanaFinal,
+    soplo: null,            // { de, para, carta }: la ventana para soplar la última carta tirada sin levantar
+    cierreHasta: null,      // fase "ultima": hasta cuándo se puede soplar la última tirada de la mano
     puntos: [0, 0],
     manoN: 0,
     reparte: 0,
@@ -107,6 +116,7 @@ function empezarMano(s, ahora, ev, primera = false) {
   s.mazo = s.mazoFijo && s.manoN === 1 ? [...s.mazoFijo] : mezclar(s, mazoCompleto());
   s.mesa = []; s.mano = [[], []]; s.levantadas = [[], []]; s.escobas = [[], []];
   s.ultimoLevanto = null; s.recuento = null; s.listos = [false, false]; s.recuentoHasta = null; s.fase = "jugando";
+  s.soplo = null; s.cierreHasta = null;
   repartirManos(s);
   for (let k = 0; k < 4; k++) s.mesa.push(s.mazo.shift());
   // la mesa suma 15 o 30: se la lleva el que reparte, como escoba (o dos)
@@ -147,6 +157,7 @@ export function contarMano(s) {
 }
 
 function cerrarMano(s, ahora, ev) {
+  s.soplo = null; s.cierreHasta = null;
   // lo que queda en la mesa: para el último que levantó (no es escoba)
   if (s.mesa.length) {
     const j = s.ultimoLevanto ?? s.reparte;
@@ -197,6 +208,25 @@ export function aplicar(estado, jugador, accion, ahora = 0) {
     return { estado: s, eventos: ev };
   }
 
+  if (accion.t === "soplar") {
+    if (!Array.isArray(accion.cartas) || accion.cartas.length > 12 || accion.cartas.some((c) => !idValido(c))) throw new Error("soplo mal formado");
+    if (new Set(accion.cartas).size !== accion.cartas.length) throw new Error("carta repetida");
+    const sp = s.soplo;
+    if (!sp || sp.para !== jugador || (s.fase !== "jugando" && s.fase !== "ultima")) return { estado, eventos: [], rechazo: rechazo("no_soplo") };
+    if (!accion.cartas.includes(sp.carta) || accion.cartas.length < 2 || accion.cartas.some((c) => !s.mesa.includes(c)) || suma(accion.cartas) !== 15) {
+      return { estado, eventos: [], rechazo: rechazo("soplo_no") };
+    }
+    s.mesa = s.mesa.filter((c) => !accion.cartas.includes(c));
+    s.levantadas[jugador].push(...accion.cartas);
+    s.ultimoLevanto = jugador;
+    s.soplo = null;
+    ev.push({ t: "soplo", jugador, de: sp.de, cartas: [...accion.cartas] });
+    if (s.fase === "ultima") cerrarMano(s, ahora, ev);
+    else s.turnoDesde = ahora;     // el que sopló sigue con su turno: vuelve a pensar
+    s.seq++;
+    return { estado: s, eventos: ev };
+  }
+
   if (accion.t !== "jugar") throw new Error("acción desconocida");
   if (!idValido(accion.carta) || !Array.isArray(accion.levanta) || accion.levanta.some((c) => !idValido(c))) throw new Error("jugada mal formada");
   if (new Set(accion.levanta).size !== accion.levanta.length) throw new Error("carta repetida");
@@ -207,13 +237,17 @@ export function aplicar(estado, jugador, accion, ahora = 0) {
   if (accion.levanta.length && valor(accion.carta) + suma(accion.levanta) !== 15) return { estado, eventos: [], rechazo: rechazo("no_suma") };
 
   s.mano[jugador].splice(enMano, 1);
+  s.soplo = null;                  // el que podía soplar ya jugó: se cerró la ventana
   let escoba = false;
   if (accion.levanta.length) {
     s.mesa = s.mesa.filter((c) => !accion.levanta.includes(c));
     s.levantadas[jugador].push(accion.carta, ...accion.levanta);
     s.ultimoLevanto = jugador;
     if (!s.mesa.length) { escoba = true; s.escobas[jugador].push(accion.carta); }
-  } else s.mesa.push(accion.carta);
+  } else {
+    s.mesa.push(accion.carta);
+    s.soplo = { de: jugador, para: 1 - jugador, carta: accion.carta };
+  }
   s.ultimo = { jugador, carta: accion.carta, levanta: [...accion.levanta], escoba };
   ev.push({ t: "jugada", jugador, carta: accion.carta, levanta: [...accion.levanta], escoba });
 
@@ -224,6 +258,12 @@ export function aplicar(estado, jugador, accion, ahora = 0) {
       repartirManos(s);
       s.turno = 1 - s.reparte;
       ev.push({ t: "repartir", quedan: s.mazo.length });
+    } else if (s.soplo) {
+      // la última de la mano se tiró sin levantar: un rato para soplarla antes del recuento (siempre, haya o no soplo)
+      s.fase = "ultima";
+      s.turno = s.soplo.para;
+      s.cierreHasta = ahora + s.ventanaFinal;
+      ev.push({ t: "ultima", hasta: s.cierreHasta });
     } else cerrarMano(s, ahora, ev);
   }
   s.seq++;
@@ -232,6 +272,15 @@ export function aplicar(estado, jugador, accion, ahora = 0) {
 
 /** Cierra el recuento si nadie tocó «Seguir» a tiempo. */
 export function reloj(estado, ahora) {
+  if (estado.fase === "ultima") {
+    if (estado.cierreHasta === null || ahora < estado.cierreHasta) return { estado, eventos: [] };
+    const s = copiar(estado);
+    delete s.eventosIniciales;
+    const ev = [];
+    cerrarMano(s, ahora, ev);
+    s.seq++;
+    return { estado: s, eventos: ev };
+  }
   if (estado.fase !== "recuento" || estado.recuentoHasta === null || ahora < estado.recuentoHasta) return { estado, eventos: [] };
   const s = copiar(estado);
   delete s.eventosIniciales;
@@ -239,6 +288,13 @@ export function reloj(estado, ahora) {
   empezarMano(s, ahora, ev);
   s.seq++;
   return { estado: s, eventos: ev };
+}
+
+/** Las formas de soplar que tiene `jugador` ahora (solo para el bot y las pruebas: la pantalla no lo muestra). */
+export function soplos(estado, jugador) {
+  const sp = estado.soplo;
+  if (!sp || sp.para !== jugador || (estado.fase !== "jugando" && estado.fase !== "ultima")) return [];
+  return combinaciones(estado.mesa.filter((c) => c !== sp.carta), sp.carta).map((x) => [sp.carta, ...x]);
 }
 
 /** Las jugadas posibles de `jugador`: cada carta con cada forma de levantar, y tirarla sin levantar. */
@@ -271,6 +327,9 @@ export function vista(estado, jugador) {
     listos: [...estado.listos], recuentoHasta: estado.recuentoHasta,
     historial: copiar(estado.historial),
     ultimo: estado.ultimo ? copiar(estado.ultimo) : null,
+    // la ventana para soplar es pública (se vio que tiró sin levantar); si había soplo, no se dice
+    soplo: estado.soplo && estado.soplo.para === jugador ? { carta: estado.soplo.carta } : null,
+    cierreHasta: estado.cierreHasta ?? null,
     seq: estado.seq,
   };
 }

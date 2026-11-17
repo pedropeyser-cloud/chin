@@ -73,7 +73,7 @@ export function montarLobby(app, { abrirJuego, tab: tabInicial = "jugar" }) {
     return `<section class="vos">
       <div class="perfil-grande"><div class="cab-cara grande">${cara(formaDe(p), "tu cara")}</div>
         <div><b class="p-nombre">${esc(p.usuario)}</b><small>${gloriaDe(p)} de gloria${prox ? ` · próximo: ${esc(prox.nombre)} (${prox.p})` : ""}</small></div></div>
-      <p class="nota">El CHIN y la escoba no dan gloria (la gloria es del truco). Las partidas con un amigo quedan en tu historial cuando los dos confirman el resultado.</p>
+      <p class="nota">El CHIN, la escoba y la canasta no dan gloria (la gloria es del truco). Las partidas con un amigo quedan en tu historial cuando los dos confirman el resultado.</p>
       <h2>Tus últimas partidas</h2>
       ${partidas === null ? `<p class="nota">Cargando…</p>` : partidas.length ? `<ul class="historial">${partidas.map((x) => `<li class="${x.gano ? "gane" : "perdi"}"><b>${esc(juegoPorId(x.partidas_juego?.juego)?.nombre || x.partidas_juego?.juego || "")}</b> ${x.gano ? "ganaste" : "perdiste"}</li>`).join("")}</ul>` : `<p class="nota">Todavía no jugaste ninguna con un amigo.</p>`}
       <div class="acciones">

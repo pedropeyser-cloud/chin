@@ -59,7 +59,18 @@
 .escoba .tiza.pasa { color: #ec8a7e; }
 .escoba .tiza-acc { position: absolute; left: 0; right: 0; bottom: 8px; z-index: 4; display: flex; justify-content: center; }
 .boton.chico { min-height: 38px; padding: 6px 16px; font-size: 14px; }
+.escoba .tiza-acc { gap: 10px; }
 .escoba .tiza-acc .boton { background: rgba(12,14,18,.82); }
+.escoba .tiza-acc .boton.primario { background: var(--ambar); }
+.escoba .tiza-acc .boton:disabled { opacity: .45; }
+/* el soplo: aparece cada vez que el otro tira sin levantar (haya o no haya), arriba a la derecha del paño */
+.escoba .soplo-btn { position: absolute; right: 10px; top: 10px; z-index: 6; min-height: 44px; padding: 4px 16px 2px; border-radius: 999px;
+  font-family: Caveat; font-weight: 700; font-size: 26px; line-height: 1; color: var(--ambar); background: rgba(12,14,18,.85);
+  border: 2px solid var(--ambar); box-shadow: 0 6px 16px rgba(0,0,0,.5); cursor: pointer; touch-action: manipulation; }
+.escoba .soplo-btn:active { transform: scale(.96); }
+.escoba .carta-mesa.soplando .carta { box-shadow: 0 0 0 3px #e2675a, 0 0 20px 4px rgba(226,103,90,.5), 0 8px 14px rgba(0,0,0,.6); }
+.escoba .carta-mesa.tirada::after { content: "tiró"; position: absolute; left: 50%; top: -18px; transform: translateX(-50%); font-family: Caveat; font-size: 18px; color: #ec8a7e; pointer-events: none; }
+.escoba .carta-mesa { position: relative; }
 .escoba .aviso { bottom: 50px; font-size: 24px; z-index: 5; }
 .escoba .grito { top: 30%; z-index: 12; }
 .escoba .grito.chico { font-size: clamp(42px, 12vw, 72px); }

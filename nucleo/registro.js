@@ -13,6 +13,11 @@ export const JUEGOS = [
     abrir: () => import("../juegos/escoba/flujo.js"),
   },
   {
+    id: "canasta", nombre: "Canasta", jugadores: [2, 2], estado: "listo",
+    descripcion: "Juntá siete iguales y armá canastas. Con dos, te vas.",
+    abrir: () => import("../juegos/canasta/flujo.js"),
+  },
+  {
     id: "truco", nombre: "Truco", jugadores: [2, 6], estado: "enlace",
     descripcion: "El truco argentino con amigos: 1 contra 1 y mesas de 4 y 6 con señas.",
     url: "https://pedropeyser-cloud.github.io/truco/",

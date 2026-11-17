@@ -24,7 +24,7 @@ export function menu(app, ctx) {
       <p class="lema">De quince, como en la mesa de la cocina. Levantá cartas que sumen 15 con la tuya y barré la mesa.</p>
       <div class="grupo">
         <span class="etiqueta">contra el bot</span>
-        <div class="dificultades">${DIFS.map((d) => `<button class="dif" data-k="${d.k}" aria-pressed="${d.k === dificultad}"><b>${d.p.nombre}</b><small>${d.k === "tranquilo" ? "se le pasan jugadas" : d.k === "rapido" ? "va por las escobas" : "cuenta las cartas"}</small></button>`).join("")}</div>
+        <div class="dificultades">${DIFS.map((d) => `<button class="dif" data-k="${d.k}" aria-pressed="${d.k === dificultad}"><b>${d.p.nombre}</b><small>${d.k === "tranquilo" ? "con la tiza que suma" : d.k === "rapido" ? "sopla seguido" : "no se le escapa nada"}</small></button>`).join("")}</div>
         <button class="boton primario jugar">Jugar contra el bot</button>
       </div>
       <div class="grupo">
@@ -34,7 +34,9 @@ export function menu(app, ctx) {
       <details class="reglas"><summary>Cómo se juega</summary><ul>
         <li>Mazo español de 40, sin 8 ni 9. Las cartas valen lo que dicen; la sota 8, el caballo 9 y el rey 10.</li>
         <li>Tres cartas para cada uno y cuatro a la mesa. Si las de la mesa suman 15 (o 30), se las lleva el que repartió, como escoba.</li>
-        <li>En tu turno arrastrá una carta a la mesa. Si con cartas de la mesa suma 15, te las llevás. Si hay más de una forma, tocá las que querés. No es obligatorio levantar.</li>
+        <li>En tu turno marcá las cartas de la mesa que suman 15 con la tuya y soltá tu carta encima (o tocá «Levantar»). La cuenta la hacés vos: soltarla en el paño sin nada marcado es tirarla.</li>
+        <li><b>Soplo:</b> si el otro tira sin levantar y había 15, tocá «¡Soplo!», marcá la que tiró y las que sumaban con ella, y te las llevás. Vale hasta que hagas tu jugada. Nadie te avisa si había.</li>
+        <li>Contra Don Tranqui hay ayuda: una tiza va sumando y, si hay una sola forma de levantar, se hace sola.</li>
         <li>Si dejás la mesa vacía es escoba: queda cruzada sobre tu montón y vale un punto.</li>
         <li>Al final del mazo, lo que queda en la mesa es para el último que levantó (no es escoba).</li>
         <li>En cada mano suman: cada escoba, más cartas, más oros, el siete de oro y la setenta (más sietes; si empatan, más seises). Se juega a 15.</li>

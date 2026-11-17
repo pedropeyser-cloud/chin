@@ -1,7 +1,10 @@
 // Mesa de la ESCOBA, dirección A «El sol con cruces» + la tiza de la B mientras se arma la jugada.
 // Las cartas de la mesa rodean al sol; las escobas quedan cruzadas boca arriba sobre el montón de cada uno.
-// Se juega arrastrando: tu carta sobre la mesa (o sobre una carta). Si hay más de una forma de levantar, se tocan
-// las cartas que querés llevarte; la tiza va sumando y se pone verde en 15. También se puede tocar en vez de arrastrar.
+// Se juega arrastrando o tocando. SIN AYUDA (Rata, El Relámpago y con amigos): la cuenta la hacés vos; marcás las
+// cartas de la mesa y soltás tu carta (o tocás «Levantar»); soltarla en el paño sin nada marcado es tirarla, aunque
+// hubiera para levantar. CON AYUDA (Don Tranqui): la tiza suma, si hay una sola forma levanta sola y avisa si hay varias.
+// SOPLO: cuando el otro tira sin levantar aparece «¡Soplo!» (siempre, haya o no): marcás las cartas que sumaban 15 con
+// la que tiró y te las llevás. Si no suman, no pasa nada y no se avisa.
 import { frente, dorso, ROTULO } from "../../nucleo/cartas.js";
 import { cara, reaccionar, parpadear } from "../../nucleo/caras.js";
 import { sonido } from "../../nucleo/sonido.js";
@@ -70,7 +73,8 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
       <div class="sol-fondo">${SOL}</div>
       <div class="tiza" aria-live="polite"></div>
       <div class="mesa-cartas" role="group" aria-label="Cartas de la mesa"></div>
-      <div class="tiza-acc" hidden><button type="button" class="boton chico tirar">Tirarla sin levantar</button></div>
+      <button type="button" class="soplo-btn" hidden>¡Soplo!</button>
+      <div class="tiza-acc" hidden></div>
       <div class="grito" aria-live="assertive"></div>
       <div class="aviso" aria-live="polite"></div>
     </div>
@@ -91,7 +95,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   cont.append(mesa);
   const $ = (s) => mesa.querySelector(s);
   const pano = $(".pano"), tiza = $(".tiza"), tizaAcc = $(".tiza-acc"), mesaCartas = $(".mesa-cartas"), grito = $(".grito"), aviso = $(".aviso");
-  const miMano = $(".mi-mano"), rivalMano = $(".rival-mano"), ayuda = $(".ayuda");
+  const miMano = $(".mi-mano"), rivalMano = $(".rival-mano"), ayudaEl = $(".ayuda");
   const montones = [yo === 0 ? $(".mio-monton") : $(".rival-monton"), yo === 0 ? $(".rival-monton") : $(".mio-monton")];
   const puntosEl = [yo === 0 ? $(".mios-puntos") : $(".rival-puntos"), yo === 0 ? $(".rival-puntos") : $(".mios-puntos")];
   const caraSlots = [yo === 0 ? $(".mia-cara") : $(".rival-cara"), yo === 0 ? $(".rival-cara") : $(".mia-cara")];
@@ -127,6 +131,10 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   let V = fuente.vista();
   let elegida = null;            // id de la carta de mi mano que estoy por tirar
   const sel = new Set();         // cartas de la mesa marcadas para levantar
+  const ayuda = !!fuente.esLocal && fuente.dificultad === "tranquilo";   // la tiza y las jugadas solas: solo con Don Tranqui
+  let soplando = false;          // marcando un soplo
+  const selSoplo = new Set();    // lo marcado para soplar (incluye la carta que tiró el otro)
+  const soploBtn = $(".soplo-btn");
   let enviando = false, ultimoAviso = 0;
   let yoQuiero = false, rivalQuiere = false, rivalNo = false, alFinLlamado = -1;
   const serie = [0, 0];
@@ -153,8 +161,11 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
       if (!b) {
         b = el(`<button type="button" class="carta-mesa" data-id="${id}" aria-label="${nombreCarta(id)}" style="--giro:${giro(id)}deg">${cartaHTML(id)}</button>`);
       }
-      b.classList.toggle("marcada", sel.has(id));
-      b.setAttribute("aria-pressed", sel.has(id));
+      const marcada = soplando ? selSoplo.has(id) : sel.has(id);
+      b.classList.toggle("marcada", marcada);
+      b.classList.toggle("soplando", soplando && marcada);
+      b.classList.toggle("tirada", soplando && V.soplo?.carta === id);
+      b.setAttribute("aria-pressed", marcada);
       return b;
     });
     mesaCartas.replaceChildren(...nuevos);
@@ -220,12 +231,22 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     caraSlots.forEach((c, j) => c.classList.toggle("turno", t === j));
     mesa.classList.toggle("mi-turno", t === yo);
     $(".sub-rival").textContent = t === rv ? "piensa…" : V.reparte === rv ? "reparte" : "rival";
-    if (V.fase !== "jugando") ayuda.textContent = V.fase === "recuento" ? "recuento de la mano" : "";
-    else if (t === yo) ayuda.textContent = elegida ? "tocá lo que levantás" : "te toca: arrastrá una carta a la mesa";
-    else ayuda.textContent = `le toca a ${nombres[rv]}`;
+    if (soplando) ayudaEl.textContent = "marcá las que sumaban 15 con la que tiró";
+    else if (V.fase === "ultima") ayudaEl.textContent = V.soplo ? "última carta de la mano" : "última carta: se cierra la mano";
+    else if (V.fase !== "jugando") ayudaEl.textContent = V.fase === "recuento" ? "recuento de la mano" : "";
+    else if (t === yo) ayudaEl.textContent = elegida ? (ayuda ? "tocá lo que levantás" : "marcá lo que levantás, o tirala") : "te toca: arrastrá una carta a la mesa";
+    else ayudaEl.textContent = `le toca a ${nombres[rv]}`;
   }
   function pintarTiza() {
-    if (!elegida && !sel.size) { tiza.classList.remove("ver", "justo", "pasa"); tizaAcc.hidden = true; return; }
+    pintarAcciones();
+    // sin ayuda la cuenta la hacés vos: la tiza no aparece
+    if (!ayuda || (soplando ? !selSoplo.size : !elegida && !sel.size)) { tiza.classList.remove("ver", "justo", "pasa"); return; }
+    if (soplando) {
+      const ps = V.mesa.filter((c) => selSoplo.has(c)), tot = suma(ps);
+      tiza.innerHTML = `${ps.map((c) => valor(c)).join(" + ")} = <b>${tot}</b>${tot < 15 ? ` <small>· te falta ${15 - tot}</small>` : ""}`;
+      tiza.classList.add("ver"); tiza.classList.toggle("justo", tot === 15); tiza.classList.toggle("pasa", tot > 15);
+      return;
+    }
     const partes = [...(elegida ? [elegida] : []), ...V.mesa.filter((c) => sel.has(c))];
     const total = suma(partes);
     const resto = total < 15 ? ` <small>· ${elegida && partes.length === 1 ? "buscá" : "te falta"} ${15 - total}</small>` : "";
@@ -235,11 +256,31 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     tiza.classList.add("ver");
     tiza.classList.toggle("justo", total === 15 && !!elegida);
     tiza.classList.toggle("pasa", total > 15);
-    // se puede tirar sin levantar aunque haya jugada (no es obligatorio levantar)
-    tizaAcc.hidden = !(elegida && miTurno() && combinaciones(V.mesa, elegida).length);
+  }
+  const puedeSoplar = () => !!V.soplo && (V.fase === "jugando" || V.fase === "ultima") && !enviando;
+  /** Los botones de abajo del paño (levantar, tirar, soplar) y el «¡Soplo!» de arriba. */
+  function pintarAcciones() {
+    let html = "";
+    if (soplando && puedeSoplar()) {
+      html = `<button type="button" class="boton chico primario" data-a="soplar">Llevármelas</button><button type="button" class="boton chico" data-a="no-soplar">Cancelar</button>`;
+    } else if (elegida && miTurno()) {
+      if (!ayuda) html = `<button type="button" class="boton chico primario" data-a="levantar" ${sel.size ? "" : "disabled"}>Levantar</button><button type="button" class="boton chico" data-a="tirar">Tirarla</button>`;
+      // con ayuda: tirar sin levantar aunque haya jugada (no es obligatorio, pero te la pueden soplar)
+      else if (combinaciones(V.mesa, elegida).length) html = `<button type="button" class="boton chico" data-a="tirar">Tirarla sin levantar</button>`;
+    }
+    if (tizaAcc.dataset.html !== html) { tizaAcc.innerHTML = html; tizaAcc.dataset.html = html; }
+    tizaAcc.hidden = !html;
+    const verSoplo = puedeSoplar() && !soplando;
+    soploBtn.hidden = !verSoplo;
+    if (verSoplo) {
+      const seg = V.fase === "ultima" && V.cierreHasta ? Math.max(0, Math.ceil((V.cierreHasta - fuente.ahora()) / 1000)) : 0;
+      soploBtn.textContent = seg ? `¡Soplo! ${seg}` : "¡Soplo!";
+    }
   }
   function pintar() {
     if (V.fase !== "jugando" || V.turno !== yo) { elegida = null; sel.clear(); }
+    if (!V.soplo) { soplando = false; selSoplo.clear(); }
+    for (const c of [...selSoplo]) if (!V.mesa.includes(c)) selSoplo.delete(c);
     // lo marcado que ya no está en la mesa se olvida
     for (const c of [...sel]) if (!V.mesa.includes(c)) sel.delete(c);
     if (elegida && !V.mano.includes(elegida)) elegida = null;
@@ -263,6 +304,12 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   /** Con la carta `carta` y lo marcado: si suma 15 se juega; si no hay nada marcado decide según las combinaciones. */
   function intentar(carta, { sobre = null, enPano = false } = {}) {
     const marcadas = V.mesa.filter((c) => sel.has(c) || c === sobre);
+    if (!ayuda) {
+      // la cuenta es tuya: con nada marcado, soltarla es tirarla; con algo marcado, tiene que sumar 15
+      if (!marcadas.length) return jugar(carta, []);
+      if (suma(marcadas) + valor(carta) === 15) return jugar(carta, marcadas);
+      temblar(); mostrarAviso("Eso no suma 15"); elegida = carta; pintar(); return;
+    }
     if (marcadas.length && suma(marcadas) + valor(carta) === 15) return jugar(carta, marcadas);
     const combos = combinaciones(V.mesa, carta);
     if (sobre) {
@@ -284,19 +331,49 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   // tocar una carta de la mesa: la marca o desmarca; si ya hay carta elegida y llega a 15, se juega
   mesaCartas.addEventListener("click", (e) => {
     const b = e.target.closest(".carta-mesa");
-    if (!b || !miTurno() || arrastre?.movio) return;
+    if (!b || arrastre?.movio) return;
     const id = b.dataset.id;
+    if (soplando) {
+      if (!puedeSoplar() || id === V.soplo.carta) return;   // la que tiró va siempre
+      if (selSoplo.has(id)) selSoplo.delete(id); else selSoplo.add(id);
+      sonido.play("carta"); pintar(); return;
+    }
+    if (!miTurno()) return;
     if (sel.has(id)) sel.delete(id); else sel.add(id);
     sonido.play("carta");
-    if (elegida && suma(V.mesa.filter((c) => sel.has(c))) + valor(elegida) === 15) { jugar(elegida, V.mesa.filter((c) => sel.has(c))); return; }
+    if (ayuda && elegida && suma(V.mesa.filter((c) => sel.has(c))) + valor(elegida) === 15) { jugar(elegida, V.mesa.filter((c) => sel.has(c))); return; }
     pintar();
   });
   // tocar el paño vacío con una carta elegida = soltarla ahí
   pano.addEventListener("click", (e) => {
-    if (e.target.closest(".carta-mesa, .tiza-acc") || !elegida || !miTurno()) return;
+    if (e.target.closest(".carta-mesa, .tiza-acc, .soplo-btn") || soplando || !elegida || !miTurno()) return;
     intentar(elegida, { enPano: true });
   });
-  tizaAcc.querySelector(".tirar").addEventListener("click", () => { if (elegida && miTurno()) jugar(elegida, []); });
+  tizaAcc.addEventListener("click", (e) => {
+    const a = e.target.closest("[data-a]")?.dataset.a;
+    if (a === "tirar") { if (elegida && miTurno()) jugar(elegida, []); }
+    else if (a === "levantar") { if (elegida && miTurno()) intentar(elegida, { enPano: true }); }
+    else if (a === "soplar") soplar();
+    else if (a === "no-soplar") { soplando = false; selSoplo.clear(); pintar(); }
+  });
+  soploBtn.addEventListener("click", () => {
+    if (!puedeSoplar()) return;
+    soplando = true; selSoplo.clear(); selSoplo.add(V.soplo.carta);
+    elegida = null; sel.clear();
+    sonido.play("carta"); vibrar(15);
+    pintar();
+  });
+  /** Manda el soplo. Si no suma 15 no pasa nada: se desmarca y listo, sin aviso. */
+  async function soplar() {
+    if (!soplando || !puedeSoplar()) return;
+    const cartas = V.mesa.filter((c) => selSoplo.has(c));
+    enviando = true;
+    let r = null;
+    try { r = await fuente.enviar({ t: "soplar", cartas }); } finally { enviando = false; }
+    soplando = false; selSoplo.clear();
+    if (r && r.mensaje) mostrarAviso(r.mensaje);
+    pintar();
+  }
 
   // ---------- arrastre de mi carta ----------
   let arrastre = null;
@@ -304,6 +381,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     const b = e.target.closest(".carta-mano");
     if (!b || !miTurno() || e.button > 0) return;
     e.preventDefault();
+    if (soplando) { soplando = false; selSoplo.clear(); pintar(); }   // agarrar una carta deja el soplo
     const r = b.getBoundingClientRect();
     arrastre = { id: b.dataset.id, nodo: b, x0: e.clientX, y0: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width, movio: false, fantasma: null, encima: null };
     b.setPointerCapture?.(e.pointerId);
@@ -355,7 +433,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
       elegida = a.id;
       sonido.play("carta");
       const marcadas = V.mesa.filter((c) => sel.has(c));
-      if (marcadas.length && suma(marcadas) + valor(a.id) === 15) { jugar(a.id, marcadas); return; }
+      if (ayuda && marcadas.length && suma(marcadas) + valor(a.id) === 15) { jugar(a.id, marcadas); return; }
       pintar();
       return;
     }
@@ -418,6 +496,16 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
             reaccionar(caras[e.jugador], "risa", 1400); reaccionar(caras[1 - e.jugador], "bronca", 1400);
           }, 380);
         }
+      } else if (e.t === "soplo") {
+        const mio = e.jugador === yo;
+        const hacia = rectDe(montones[e.jugador].querySelector(".pila-dorsos"));
+        e.cartas.forEach((c, k) => setTimeout(() => volar(c, antesMesa.get(c), hacia, { ms: 420 }), 60 + k * 50));
+        setTimeout(() => sonido.play("llevar"), 200);
+        gritar(mio ? "¡Soplo!" : "¡Te soplaron!", mio ? "" : "rival");
+        if (mio) { sonido.play("chin"); vibrar([20, 40, 60]); }
+        else { sonido.play("rechazo"); mostrarAviso(`${nombres[e.jugador]} te sopló ${e.cartas.length} cartas`); }
+        reaccionar(caras[e.jugador], "risa", 1400); reaccionar(caras[1 - e.jugador], "bronca", 1400);
+        if (e.cartas.includes("7-oro")) setTimeout(() => gritar(mio ? "¡El siete de oro!" : "El siete de oro…", mio ? "chico" : "rival chico"), 900);
       } else if (e.t === "repartir" || e.t === "reparto") {
         sonido.play("carta");
         const cartas = [...miMano.querySelectorAll(".carta-mano")];
@@ -502,7 +590,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     const seg = V.recuentoHasta ? Math.max(0, Math.ceil((V.recuentoHasta - fuente.ahora()) / 1000)) : 0;
     b.textContent = listo ? `Esperando a ${nombres[rv]}…` : `Seguir${seg ? ` (${seg})` : ""}`;
   }
-  const timerRecuento = setInterval(() => { if (!recuentoEl.hidden) pintarRecuentoBoton(); }, 1000);
+  const timerRecuento = setInterval(() => { if (!recuentoEl.hidden) pintarRecuentoBoton(); if (V.fase === "ultima") pintarAcciones(); }, 500);
 
   // ---------- final ----------
   function mostrarFin() {
