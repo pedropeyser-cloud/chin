@@ -1,0 +1,111 @@
+/* Mesa de la ESCOBA, dirección A «El sol con cruces» + tiza (usa .mesa, .franja, .fin, .pizarra… de chin.css) */
+.mesa.escoba {
+  --hw: clamp(62px, min(23vw, 14dvh), 128px);        /* mis cartas */
+  --tw: clamp(46px, min(16.5vw, 10.6dvh), 104px);    /* cartas de la mesa */
+  --mw: clamp(38px, min(11vw, 7dvh), 66px);          /* montones y mazo */
+}
+.escoba .franja .puntos { flex: none; display: grid; justify-items: center; line-height: .82; min-width: 46px; }
+.escoba .puntos b { font-family: Caveat; font-weight: 700; font-size: clamp(36px, 9.5vw, 48px); color: var(--papel); font-variant-numeric: tabular-nums; }
+.escoba .puntos small { font-family: Plex; font-size: 10px; color: var(--gris); }
+.escoba .puntos.cerca b { color: var(--ambar); }
+.escoba .mios-puntos b { color: var(--ambar); }
+.escoba .cara-slot.turno::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid var(--ambar); box-shadow: 0 0 16px 3px rgba(240,169,59,.45); animation: pide 1.3s ease-in-out infinite; pointer-events: none; }
+
+/* fila del rival: su montón, sus cartas boca abajo y el mazo */
+.escoba .fila-rival { display: grid; grid-template-columns: var(--mw) 1fr var(--mw); align-items: center; gap: 10px; padding: 0 16px 6px; position: relative; z-index: 2; }
+.escoba .rival-mano { display: flex; justify-content: center; }
+.escoba .rival-mano .dorso-chico { width: calc(var(--hw) * .5); margin: 0 -6px; box-shadow: 0 3px 7px rgba(0,0,0,.5); }
+.escoba .rival-mano .dorso-chico:nth-child(1) { transform: rotate(-7deg); } .escoba .rival-mano .dorso-chico:nth-child(3) { transform: rotate(7deg); }
+.escoba .monton, .escoba .mazo-chico { position: relative; width: var(--mw); aspect-ratio: 600/860; }
+.escoba .pila-dorsos { position: absolute; inset: 0; z-index: 1; }
+.escoba .pila-dorsos .capa { position: absolute; inset: 0; border-radius: 6px; box-shadow: 0 3px 8px rgba(0,0,0,.5); overflow: hidden; }
+.escoba .pila-dorsos .c2 { transform: translate(2px, -2px); }
+.escoba .monton > b, .escoba .mazo-chico > b { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; font-family: Caveat; font-weight: 700; font-size: clamp(22px, 3.4dvh, 32px); color: var(--ambar); text-shadow: 0 2px 6px #000; pointer-events: none; }
+.escoba .monton.vacio .pila-dorsos, .escoba .mazo-chico.vacio .pila-dorsos { opacity: .18; }
+.escoba .mazo-chico small { position: absolute; left: 0; right: 0; top: 100%; text-align: center; font-family: Plex; font-size: 9.5px; color: var(--gris); margin-top: 2px; }
+/* las escobas: boca arriba y cruzadas debajo del montón, asoman a los costados */
+.escoba .cruces { position: absolute; inset: 0; z-index: 0; }
+.escoba .cruz { position: absolute; left: 0; top: 0; width: 100%; aspect-ratio: 600/860; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,.5);
+  transform: translateY(calc(var(--k) * -3px)) rotate(90deg); }
+.escoba .n-escobas { position: absolute; left: 50%; top: calc(100% + 4px); transform: translateX(-50%); z-index: 3; white-space: nowrap; font-style: normal; font-family: Caveat; font-weight: 700; font-size: 17px; line-height: 1; color: var(--ambar); text-shadow: 0 1px 4px #000; }
+
+/* el paño: las cartas de la mesa rodean al sol */
+.escoba .pano { display: block; position: relative; overflow: hidden; }
+.escoba .pano.no { animation: no .3s ease-in-out; }
+.escoba .pano.encima { box-shadow: inset 0 0 60px rgba(0,0,0,.55), 0 0 0 2px rgba(240,169,59,.65), 0 0 24px 4px rgba(240,169,59,.25); }
+.escoba .sol-fondo { position: absolute; left: 50%; top: 50%; width: min(64%, 46dvh); aspect-ratio: 1; transform: translate(-50%, -50%); color: #39404a; opacity: .75; pointer-events: none; }
+.escoba .sol-fondo svg { width: 100%; height: 100%; animation: gira 90s linear infinite; }
+.escoba .pano.vacia .sol-fondo { color: #4d5460; }
+.escoba .mesa-cartas { position: absolute; inset: 44px 10px 46px; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; gap: clamp(6px, 1.6vw, 12px); z-index: 2; }
+.escoba .mesa-cartas[data-n="varias"] { --tw: clamp(42px, min(14.5vw, 9dvh), 92px); }
+.escoba .mesa-cartas[data-n="muchas"] { --tw: clamp(38px, min(12.5vw, 7.6dvh), 80px); gap: 5px; }
+.escoba .carta-mesa { width: var(--tw); padding: 0; border: 0; background: none; border-radius: 7px; transform: rotate(var(--giro, 0deg)); transition: transform .12s; touch-action: manipulation; }
+.escoba .carta-mesa .carta { box-shadow: 0 4px 10px rgba(0,0,0,.55); }
+.escoba .carta-mesa.marcada { transform: translateY(-8px) rotate(0deg); }
+/* en anillo alrededor del sol: cada carta se ubica por su centro (left/top los pone mesa.js) */
+.escoba .mesa-cartas.anillo { display: block; }
+.escoba .anillo .carta-mesa { position: absolute; transform: translate(-50%, -50%) rotate(var(--giro, 0deg)); transition: transform .12s, left .28s ease, top .28s ease; }
+.escoba .anillo .carta-mesa.marcada { transform: translate(-50%, calc(-50% - 8px)) rotate(0deg); }
+.escoba .carta-mesa.marcada .carta { box-shadow: 0 0 0 3px var(--ambar), 0 0 20px 4px rgba(240,169,59,.5), 0 8px 14px rgba(0,0,0,.6); }
+.escoba .carta-mesa.encima .carta { box-shadow: 0 0 0 3px var(--papel), 0 0 20px 5px rgba(235,228,212,.4), 0 6px 12px rgba(0,0,0,.6); }
+/* la tiza: la cuenta de lo que estás armando */
+.escoba .tiza { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); z-index: 4; white-space: nowrap; font-family: Caveat; font-weight: 700; font-size: clamp(24px, 6.6vw, 34px); line-height: 1;
+  color: rgba(235,228,212,.92); text-shadow: 0 0 2px rgba(235,228,212,.5), 0 2px 8px rgba(0,0,0,.7); opacity: 0; transition: opacity .12s; pointer-events: none; letter-spacing: .02em;
+  background: rgba(16,22,20,.82); padding: 4px 14px 2px; border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.4); z-index: 6; }
+.escoba .tiza.ver { opacity: 1; }
+.escoba .tiza b { font-size: 1.2em; }
+.escoba .tiza small { font-size: .7em; color: var(--texto-suave); }
+.escoba .tiza.justo { color: #a8e3a2; }
+.escoba .tiza.pasa { color: #ec8a7e; }
+.escoba .tiza-acc { position: absolute; left: 0; right: 0; bottom: 8px; z-index: 4; display: flex; justify-content: center; }
+.boton.chico { min-height: 38px; padding: 6px 16px; font-size: 14px; }
+.escoba .tiza-acc .boton { background: rgba(12,14,18,.82); }
+.escoba .aviso { bottom: 50px; font-size: 24px; z-index: 5; }
+.escoba .grito { top: 30%; z-index: 12; }
+.escoba .grito.chico { font-size: clamp(42px, 12vw, 72px); }
+
+/* mi fila: mis tres cartas y mi montón */
+.escoba .fila-mia { padding: 12px 16px 0; position: relative; z-index: 3; }
+.escoba .mi-mano { display: flex; justify-content: center; gap: clamp(6px, 2vw, 14px); min-height: calc(var(--hw) * 860 / 600); }
+/* mi montón va en la franja de abajo, junto a mis puntos; el rótulo de escobas, arriba */
+.escoba .franja .mio-monton { flex: none; width: calc(var(--mw) * .9); }
+.escoba .mio-monton .n-escobas { top: auto; bottom: calc(100% + 6px); }
+.escoba .carta-mano { width: var(--hw); padding: 0; border: 0; background: none; border-radius: 8px; touch-action: none; cursor: grab; transition: transform .12s; }
+.escoba .carta-mano .carta { box-shadow: 0 5px 12px rgba(0,0,0,.55); }
+.escoba.mi-turno .carta-mano:hover { transform: translateY(-6px); }
+.escoba .carta-mano.elegida { transform: translateY(-14px); }
+.escoba .carta-mano.elegida .carta { box-shadow: 0 0 0 3px var(--ambar), 0 12px 20px rgba(0,0,0,.6); }
+.escoba .carta-mano.levantada .carta { opacity: .22; }
+.escoba:not(.mi-turno) .carta-mano { cursor: default; filter: brightness(.82); }
+.escoba .carta.arrastre { left: 0; top: 0; }
+.escoba .carta.vuelo { position: absolute; left: 0; top: 0; z-index: 25; pointer-events: none; transform-origin: 0 0; box-shadow: 0 10px 22px rgba(0,0,0,.55); }
+.escoba .franja.abajo { padding-top: 8px; }
+
+/* recuento y final */
+.escoba .fin.recuento { z-index: 34; }
+.escoba .fin-tabla .gana { font-style: normal; color: var(--ambar); font-size: .7em; margin-left: 4px; vertical-align: middle; }
+.escoba .fin-tabla tr.suma td, .escoba .fin-tabla tr.suma th { border-top: 1px dashed rgba(235,228,212,.3); padding-top: 4px; color: var(--ambar); }
+.escoba .fin-tabla tr.van td { font-size: 1.25em; color: var(--papel); }
+.escoba .fin-tabla tr.van th { color: var(--texto-suave); }
+.escoba-menu .sello { font-size: clamp(76px, 22vw, 130px); }
+
+@media (max-height: 700px) { .escoba .mesa-cartas { inset: 38px 8px 40px; } .escoba .fila-mia { padding-top: 6px; } }
+@media (prefers-reduced-motion: reduce) { .escoba .sol-fondo svg, .escoba .cara-slot.turno::after { animation: none; } .escoba .carta-mano, .escoba .carta-mesa { transition: none; } }
+
+/* compu: mesa más ancha, cartas grandes */
+@media (pointer: fine) and (min-width: 900px) {
+  .mesa.escoba { max-width: min(900px, 94vw); --hw: clamp(76px, 13dvh, 140px); --tw: clamp(58px, 10dvh, 110px); --mw: clamp(46px, 7.5dvh, 80px); }
+  .escoba .mesa-cartas[data-n="varias"] { --tw: clamp(54px, 9dvh, 100px); }
+  .escoba .mesa-cartas[data-n="muchas"] { --tw: clamp(48px, 8dvh, 88px); }
+  .escoba .rival-mano .dorso-chico { width: calc(var(--hw) * .55); }
+}
+/* compu ancha: anulo la grilla de tres columnas del CHIN; la escoba va centrada en una columna */
+@media (pointer: fine) and (min-width: 1100px) and (min-aspect-ratio: 5/4) {
+  .mesa.escoba { display: flex; max-width: min(980px, 92vw); margin: 0 auto; padding: 0; }
+  .mesa.escoba .franja { flex-wrap: nowrap; padding: 10px 16px; }
+  .mesa.escoba .franja .quien { flex: 1; }
+  .mesa.escoba .franja .icono { order: 0; }
+  .mesa.escoba .franja.arriba, .mesa.escoba .franja.abajo { align-self: stretch; }
+  .mesa.escoba .pano { margin: 6px 8px; }
+  .mesa.escoba .emotes-bandeja { left: auto; right: 12px; }
+}

@@ -8,6 +8,11 @@ export const JUEGOS = [
     abrir: () => import("../juegos/chin/flujo.js"),
   },
   {
+    id: "escoba", nombre: "Escoba de 15", jugadores: [2, 2], estado: "listo",
+    descripcion: "Levantá cartas que sumen 15 con la tuya. Si dejás la mesa vacía, escoba.",
+    abrir: () => import("../juegos/escoba/flujo.js"),
+  },
+  {
     id: "truco", nombre: "Truco", jugadores: [2, 6], estado: "enlace",
     descripcion: "El truco argentino con amigos: 1 contra 1 y mesas de 4 y 6 con señas.",
     url: "https://pedropeyser-cloud.github.io/truco/",

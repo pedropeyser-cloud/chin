@@ -1,7 +1,7 @@
 // Lobby de la plataforma: tres pantallas (Jugar, Pulpería, Vos) con cabecera de perfil y barra de abajo.
 // Jugar = catálogo de juegos (registro.js). Pulpería = lo que se consigue con la gloria (catalogo.js).
 // Vos = entrar con Google, elegir usuario, ver la gloria y las partidas, cerrar sesión o borrar la cuenta.
-import { JUEGOS } from "./registro.js";
+import { JUEGOS, juegoPorId } from "./registro.js";
 import { cara } from "./caras.js";
 import { dorso } from "./cartas.js";
 import { DORSOS, PANOS, CARAS, alcanza, formaDe, gloriaDe, proximo } from "./catalogo.js";
@@ -73,9 +73,9 @@ export function montarLobby(app, { abrirJuego, tab: tabInicial = "jugar" }) {
     return `<section class="vos">
       <div class="perfil-grande"><div class="cab-cara grande">${cara(formaDe(p), "tu cara")}</div>
         <div><b class="p-nombre">${esc(p.usuario)}</b><small>${gloriaDe(p)} de gloria${prox ? ` · próximo: ${esc(prox.nombre)} (${prox.p})` : ""}</small></div></div>
-      <p class="nota">El CHIN no da gloria (la gloria es del truco). Las partidas con un amigo quedan en tu historial cuando los dos confirman el resultado.</p>
+      <p class="nota">El CHIN y la escoba no dan gloria (la gloria es del truco). Las partidas con un amigo quedan en tu historial cuando los dos confirman el resultado.</p>
       <h2>Tus últimas partidas</h2>
-      ${partidas === null ? `<p class="nota">Cargando…</p>` : partidas.length ? `<ul class="historial">${partidas.map((x) => `<li class="${x.gano ? "gane" : "perdi"}"><b>${esc(x.partidas_juego?.juego || "")}</b> ${x.gano ? "ganaste" : "perdiste"}</li>`).join("")}</ul>` : `<p class="nota">Todavía no jugaste ninguna con un amigo.</p>`}
+      ${partidas === null ? `<p class="nota">Cargando…</p>` : partidas.length ? `<ul class="historial">${partidas.map((x) => `<li class="${x.gano ? "gane" : "perdi"}"><b>${esc(juegoPorId(x.partidas_juego?.juego)?.nombre || x.partidas_juego?.juego || "")}</b> ${x.gano ? "ganaste" : "perdiste"}</li>`).join("")}</ul>` : `<p class="nota">Todavía no jugaste ninguna con un amigo.</p>`}
       <div class="acciones">
         <button class="boton" data-accion="salir">Cerrar sesión</button>
         ${confirmarBorrado ? `<div class="borrar"><p class="nota">Esto borra tu usuario, tu gloria y tu historial, también en el truco. No se puede deshacer. Escribí tu usuario para confirmar:</p><input class="campo" id="confirmar" autocomplete="off" aria-label="Escribí tu usuario"><button class="boton peligro" data-accion="borrar-ok">Borrar mi cuenta</button><button class="boton suave" data-accion="borrar-no">No, volver</button></div>`

@@ -18,16 +18,17 @@ function yo(enRed = false) {
   return { nombre: p.usuario, estilo: { ...estiloParaMesa(p), cara: formaDe(p) }, id: p.id };
 }
 
-/** Al terminar una partida con un amigo: el anfitrión la propone y cada uno la confirma (queda en el historial cuando confirmaron los dos; el CHIN no da gloria). */
-async function alFin({ v, fuente, codigo, n }) {
+/** Al terminar una partida con un amigo: el anfitrión la propone y cada uno la confirma (queda en el historial cuando
+ *  confirmaron los dos; los juegos de la plataforma no dan gloria). `juego` y `restantes` los pone cada juego (CHIN por defecto). */
+async function alFin({ v, fuente, codigo, n, juego = "chin", restantes }) {
   const p = nube.miPerfil();
   if (!p || fuente.esLocal) return;
   const ids = fuente.jugadores().map((j) => j.id);
   if (!ids[0] || !ids[1] || ids[0] === ids[1] || ids[fuente.yo] !== p.id || v.ganador === null) return;
-  const id = `chin-${codigo}-${n}`;
+  const id = `${juego}-${codigo}-${n}`;
   try {
     if (fuente.esAnfitrion) {
-      await nube.registrarPartidaJuego({ id, juego: "chin", ganador: v.ganador, restantes: v.cartas[1 - v.ganador], jugadores: [{ id: ids[0], lado: 0 }, { id: ids[1], lado: 1 }] });
+      await nube.registrarPartidaJuego({ id, juego, ganador: v.ganador, restantes: restantes ?? v.cartas[1 - v.ganador], jugadores: [{ id: ids[0], lado: 0 }, { id: ids[1], lado: 1 }] });
     }
     await nube.confirmarPartidaJuego(id, v.ganador);
   } catch (e) { console.warn("no se pudo anotar la partida:", e.message); }
@@ -63,10 +64,12 @@ async function arrancar() {
     if (j?.abrir) { juegoAbierto = await j.abrir(); juegoAbierto.entrar(app, sala, ctx); return; }
   }
   // pruebas en el navegador: ?auto=1 salta el lobby y juega contra el bot (&dif=tranquilo|rapido|implacable);
-  // el tutorial de la primera vez solo aparece con &tutorial=1
+  // &juego=escoba elige el juego (CHIN por defecto); el tutorial de CHIN solo aparece con &tutorial=1; &semilla=n fija el reparto
   if (params.get("auto")) {
-    juegoAbierto = await juegoPorId("chin").abrir();
-    juegoAbierto.contraBot(app, { ...ctx, yo: () => yo(false) }, params.get("dif"), { tutorial: params.get("tutorial") === "1" });
+    const j = juegoPorId(params.get("juego") || "chin") || juegoPorId("chin");
+    juegoAbierto = await j.abrir();
+    const semilla = params.get("semilla") ? Number(params.get("semilla")) : undefined;
+    juegoAbierto.contraBot(app, { ...ctx, yo: () => yo(false) }, params.get("dif"), { tutorial: params.get("tutorial") === "1", semilla });
     return;
   }
   inicio(params.get("tab") || "jugar");
