@@ -51,3 +51,39 @@ export function entrarSala(codigo, { alConectar, alMensaje, alCortar, alError })
   peer.on("error", (e) => { alError?.(e); if (e.type === "peer-unavailable" || e.type === "network" || e.type === "server-error") reintentar(); });
   return { enviar: (m) => { if (conn?.open) conn.send(m); }, cerrar: () => { cerrado = true; clearTimeout(timer); peer.destroy(); } };
 }
+
+/**
+ * Anfitrión de una sala de VARIOS (la escoba de a 4, 2026-11-17): estrella con el anfitrión en el centro. Acepta hasta
+ * `max` invitados; a cada conexión le da un número (`cid`) y avisa con él. Al que llega con la sala llena le manda
+ * `{ t: "lleno" }`. `abrirSala` (de a 2) queda como estaba.
+ */
+export function abrirSalaVarios(codigo, max, { alAbrir, alEntrar, alMensaje, alSalir, alError }) {
+  let peer, intentos = 0, cerrado = false, n = 0;
+  const conns = new Map();   // cid → conexión abierta
+  const crear = () => {
+    peer = new Peer(PREFIJO + codigo, ICE);
+    peer.on("open", () => { intentos = 0; alAbrir?.(); });
+    peer.on("connection", (c) => {
+      let cid = null;
+      c.on("open", () => {
+        if (conns.size >= max) { c.send({ t: "lleno" }); setTimeout(() => c.close(), 300); return; }
+        cid = ++n; conns.set(cid, c); alEntrar?.(cid);
+      });
+      c.on("data", (m) => { if (cid && conns.get(cid) === c && m && typeof m === "object") alMensaje?.(cid, m); });
+      c.on("close", () => { if (cid && conns.get(cid) === c) { conns.delete(cid); alSalir?.(cid); } });
+    });
+    peer.on("disconnected", () => { try { if (!cerrado) peer.reconnect(); } catch { /* ok */ } });
+    peer.on("error", (e) => {
+      if (e.type === "unavailable-id" && intentos++ < 8) { peer.destroy(); setTimeout(crear, 2500); return; }
+      alError?.(e);
+    });
+  };
+  crear();
+  return {
+    enviar: (cid, m) => { const c = conns.get(cid); if (c?.open) c.send(m); },
+    todos: (m, salvo = null) => { for (const [cid, c] of conns) if (cid !== salvo && c.open) c.send(m); },
+    cortar: (cid) => { const c = conns.get(cid); conns.delete(cid); try { c?.close(); } catch { /* ok */ } },
+    conectados: () => [...conns.keys()],
+    cerrar: () => { cerrado = true; peer.destroy(); },
+  };
+}

@@ -24,11 +24,17 @@ async function alFin({ v, fuente, codigo, n, juego = "chin", restantes }) {
   const p = nube.miPerfil();
   if (!p || fuente.esLocal) return;
   const ids = fuente.jugadores().map((j) => j.id);
-  if (!ids[0] || !ids[1] || ids[0] === ids[1] || ids[fuente.yo] !== p.id || v.ganador === null) return;
+  if (ids[fuente.yo] !== p.id || v.ganador === null) return;
+  // de a 4 (escoba en parejas): se anotan las personas con cuenta, cada una con su pareja (asiento % 2); hace falta al
+  // menos una de cada lado. Los bots y los que entran sin cuenta no se anotan.
+  const de4 = ids.length === 4;
+  const jugadores = de4 ? ids.map((x, a) => (x ? { id: x, lado: a % 2 } : null)).filter(Boolean) : [{ id: ids[0], lado: 0 }, { id: ids[1], lado: 1 }];
+  if (jugadores.some((j) => !j.id) || new Set(jugadores.map((j) => j.id)).size !== jugadores.length) return;
+  if (!jugadores.some((j) => j.lado === 0) || !jugadores.some((j) => j.lado === 1)) return;
   const id = `${juego}-${codigo}-${n}`;
   try {
     if (fuente.esAnfitrion) {
-      await nube.registrarPartidaJuego({ id, juego, ganador: v.ganador, restantes: restantes ?? v.cartas[1 - v.ganador], jugadores: [{ id: ids[0], lado: 0 }, { id: ids[1], lado: 1 }] });
+      await nube.registrarPartidaJuego({ id, juego, ganador: v.ganador, restantes: restantes ?? v.cartas[1 - v.ganador], jugadores });
     }
     await nube.confirmarPartidaJuego(id, v.ganador);
   } catch (e) { console.warn("no se pudo anotar la partida:", e.message); }
@@ -69,7 +75,8 @@ async function arrancar() {
     const j = juegoPorId(params.get("juego") || "chin") || juegoPorId("chin");
     juegoAbierto = await j.abrir();
     const semilla = params.get("semilla") ? Number(params.get("semilla")) : undefined;
-    juegoAbierto.contraBot(app, { ...ctx, yo: () => yo(false) }, params.get("dif"), { tutorial: params.get("tutorial") === "1", semilla });
+    // `n=4&socio=…`: la escoba de a 4 contra bots (socio: tranquilo | rapido | implacable)
+    juegoAbierto.contraBot(app, { ...ctx, yo: () => yo(false) }, params.get("dif"), { tutorial: params.get("tutorial") === "1", semilla, jugadores: Number(params.get("n")) || undefined, companero: params.get("socio") || undefined });
     return;
   }
   inicio(params.get("tab") || "jugar");

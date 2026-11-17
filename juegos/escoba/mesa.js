@@ -41,74 +41,118 @@ export function pedirPantallaCompleta() {
 /**
  * @param {HTMLElement} cont
  * @param {{ fuente: object, salir: () => void, otraDificultad?: () => void, alFin?: (v) => void }} o
+ * De a 4 (`vista().n === 4`, dirección C «caras sobre el borde del paño»): el paño a todo el ancho y las tres caras
+ * apoyadas en su borde donde se sentarían (compañero arriba, rival de la izquierda y de la derecha a los costados).
+ * Montones, puntos, recuento y final van por pareja; las caras, las manos y los globos, por asiento.
  */
 export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
-  const yo = fuente.yo, rv = 1 - yo;
+  const yo = fuente.yo;
+  const n = fuente.vista().n === 4 ? 4 : 2, de4 = n === 4;
+  const P = (j) => (de4 ? j % 2 : j);                 // la pareja de un asiento (de a 2, el mismo asiento)
+  const miP = P(yo), suP = 1 - miP;
+  const rv = de4 ? (yo + 1) % 4 : 1 - yo;            // de a 2, el rival; de a 4, el de mi derecha (el que sigue)
+  const rel = (j) => (j - yo + n) % n;                // 0 yo, 1 derecha, 2 enfrente, 3 izquierda (de a 2: 1 = el rival)
+  const asientoRel = (r) => (yo + r) % n;
   const rotuloAntes = ROTULO.texto;
   ROTULO.texto = "escoba";
   const jug = fuente.jugadores();
   let nombres = fuente.vista().nombres;
-  const formas = jug.map((j, i) => (Number.isInteger(j.estilo?.cara) ? j.estilo.cara : [2, 4][i]));
+  const formas = jug.map((j, i) => (Number.isInteger(j.estilo?.cara) ? j.estilo.cara : [2, 4, 1, 5][i]));
   const dorsoDe = (j) => jug[j]?.estilo?.dorso || "clasico";
 
   cont.innerHTML = "";
-  const mesa = el(`
-  <div class="mesa escoba">
-    <header class="franja arriba">
-      <button type="button" class="icono salir-btn" aria-label="Salir de la partida" title="Salir de la partida">←</button>
-      <div class="cara-slot rival-cara"><span class="burbuja rival-burbuja"></span></div>
-      <div class="quien"><span class="n-rival"></span><button type="button" class="red-punto" hidden aria-label="Conexión"></button><small class="sub-rival"></small></div>
-      <div class="puntos rival-puntos" aria-label="Puntos del rival"><b>0</b><small>de 15</small></div>
+  const montonHTML = (cls, etiqueta) => `<div class="monton ${cls}" aria-label="${etiqueta}"><div class="cruces"></div><div class="pila-dorsos"></div><b>0</b></div>`;
+  const mazoHTML = `<div class="mazo-chico" aria-label="Cartas en el mazo"><div class="pila-dorsos"></div><b>30</b><small>mazo</small></div>`;
+  const botonesArriba = `
       <button class="icono emote-btn" aria-label="Reacciones">💬</button>
       <button class="icono pantalla-btn" aria-label="Pantalla completa" title="Pantalla completa" hidden>⛶</button>
       <button class="icono sonido-btn" aria-label="Sonido"></button>
-      <div class="emotes-bandeja" hidden></div>
-    </header>
-    <div class="fila-rival">
-      <div class="monton rival-monton" aria-label="Lo que levantó el rival"><div class="cruces"></div><div class="pila-dorsos"></div><b>0</b></div>
-      <div class="rival-mano" aria-label="Cartas del rival"></div>
-      <div class="mazo-chico" aria-label="Cartas en el mazo"><div class="pila-dorsos"></div><b>30</b><small>mazo</small></div>
-    </div>
+      <div class="emotes-bandeja" hidden></div>`;
+  const panoHTML = (extra = "") => `
     <div class="pano">
       <div class="sol-fondo">${SOL}</div>
       <div class="tiza" aria-live="polite"></div>
       <div class="mesa-cartas" role="group" aria-label="Cartas de la mesa"></div>
+      ${extra}
       <button type="button" class="soplo-btn" hidden>¡Soplo!</button>
       <div class="tiza-acc" hidden></div>
       <div class="grito" aria-live="assertive"></div>
       <div class="aviso" aria-live="polite"></div>
-    </div>
+    </div>`;
+  const asientoHTML = (r, lado) => `<div class="asiento as-${lado}" data-rel="${r}"><div class="cara-slot"><span class="burbuja"></span></div><div class="as-quien"><b class="n"></b><small></small></div><div class="mano-dorsos" aria-label="Cartas que le quedan"></div></div>`;
+  const abajo = (puntos) => `
     <div class="fila-mia">
       <div class="mi-mano" role="group" aria-label="Tus cartas"></div>
     </div>
     <header class="franja abajo">
       <div class="cara-slot mia-cara"><span class="burbuja mia-burbuja"></span></div>
       <div class="quien"><span class="n-yo"></span><small class="ayuda"></small></div>
-      <div class="monton mio-monton" aria-label="Lo que levantaste"><div class="cruces"></div><div class="pila-dorsos"></div><b>0</b></div>
-      <div class="puntos mios-puntos" aria-label="Tus puntos"><b>0</b><small>de 15</small></div>
+      ${montonHTML("mio-monton", de4 ? "Lo que levantó tu pareja" : "Lo que levantaste")}
+      ${puntos}
     </header>
     <div class="corte" hidden>Se cortó la conexión. Reintentando…</div>
     <div class="fin recuento" hidden></div>
     <div class="fin final" hidden></div>
-    <div class="fin dejar" hidden role="dialog" aria-modal="true" aria-labelledby="dejar-tit"></div>
+    <div class="fin dejar" hidden role="dialog" aria-modal="true" aria-labelledby="dejar-tit"></div>`;
+  const mesa = el(de4 ? `
+  <div class="mesa escoba de4">
+    <header class="franja arriba">
+      <button type="button" class="icono salir-btn" aria-label="Salir de la partida" title="Salir de la partida">←</button>
+      <div class="tanteo" aria-label="Puntos por pareja"><span>nos</span><div class="puntos mios-puntos"><b>0</b></div><em>·</em><div class="puntos rival-puntos"><b>0</b></div><span>ellos</span><small class="tanteo-meta">de 15</small></div>
+      <button type="button" class="red-punto" hidden aria-label="Conexión"></button>
+      ${botonesArriba}
+    </header>
+    <div class="fila-bordes">
+      ${montonHTML("rival-monton", "Lo que levantó la otra pareja")}
+      <span class="ronda" aria-hidden="true">la ronda va ↺ a tu derecha</span>
+      ${mazoHTML}
+    </div>
+    ${panoHTML(asientoHTML(2, "n") + asientoHTML(3, "o") + asientoHTML(1, "e"))}
+    ${abajo("")}
+  </div>` : `
+  <div class="mesa escoba">
+    <header class="franja arriba">
+      <button type="button" class="icono salir-btn" aria-label="Salir de la partida" title="Salir de la partida">←</button>
+      <div class="cara-slot rival-cara"><span class="burbuja rival-burbuja"></span></div>
+      <div class="quien"><span class="n-rival"></span><button type="button" class="red-punto" hidden aria-label="Conexión"></button><small class="sub-rival"></small></div>
+      <div class="puntos rival-puntos" aria-label="Puntos del rival"><b>0</b><small>de 15</small></div>
+      ${botonesArriba}
+    </header>
+    <div class="fila-rival">
+      ${montonHTML("rival-monton", "Lo que levantó el rival")}
+      <div class="rival-mano" aria-label="Cartas del rival"></div>
+      ${mazoHTML}
+    </div>
+    ${panoHTML()}
+    ${abajo(`<div class="puntos mios-puntos" aria-label="Tus puntos"><b>0</b><small>de 15</small></div>`)}
   </div>`);
   cont.append(mesa);
   const $ = (s) => mesa.querySelector(s);
   const pano = $(".pano"), tiza = $(".tiza"), tizaAcc = $(".tiza-acc"), mesaCartas = $(".mesa-cartas"), grito = $(".grito"), aviso = $(".aviso");
-  const miMano = $(".mi-mano"), rivalMano = $(".rival-mano"), ayudaEl = $(".ayuda");
-  const montones = [yo === 0 ? $(".mio-monton") : $(".rival-monton"), yo === 0 ? $(".rival-monton") : $(".mio-monton")];
-  const puntosEl = [yo === 0 ? $(".mios-puntos") : $(".rival-puntos"), yo === 0 ? $(".rival-puntos") : $(".mios-puntos")];
-  const caraSlots = [yo === 0 ? $(".mia-cara") : $(".rival-cara"), yo === 0 ? $(".rival-cara") : $(".mia-cara")];
+  const miMano = $(".mi-mano"), ayudaEl = $(".ayuda");
+  // por pareja: [pareja 0, pareja 1] (de a 2, por asiento)
+  const porPareja = (mio, suyo) => (miP === 0 ? [mio, suyo] : [suyo, mio]);
+  const montones = porPareja($(".mio-monton"), $(".rival-monton"));
+  const puntosEl = porPareja($(".mios-puntos"), $(".rival-puntos"));
+  // por asiento: la cara, el nombre, la mano boca abajo y el globo de cada uno
+  const asientoEl = (r) => mesa.querySelector(`.asiento[data-rel="${r}"]`);
+  const caraSlots = Array.from({ length: n }, (_, j) => (rel(j) === 0 ? $(".mia-cara") : de4 ? asientoEl(rel(j)).querySelector(".cara-slot") : $(".rival-cara")));
+  const manosEl = Array.from({ length: n }, (_, j) => (rel(j) === 0 ? null : de4 ? asientoEl(rel(j)).querySelector(".mano-dorsos") : $(".rival-mano")));
+  const nombreEl = Array.from({ length: n }, (_, j) => (rel(j) === 0 ? $(".n-yo") : de4 ? asientoEl(rel(j)).querySelector(".n") : $(".n-rival")));
+  const subEl = Array.from({ length: n }, (_, j) => (rel(j) === 0 ? null : de4 ? asientoEl(rel(j)).querySelector("small") : $(".sub-rival")));
   const recuentoEl = $(".fin.recuento"), finEl = $(".fin.final"), dejar = $(".fin.dejar");
   const panoEstilo = jug[yo]?.estilo?.pano;
   if (panoEstilo) pano.dataset.pano = panoEstilo;
-  const caraMia = el(cara(formas[yo], "tu cara")), caraRival = el(cara(formas[rv], "cara del rival"));
-  $(".mia-cara").append(caraMia); $(".rival-cara").append(caraRival);
-  const cesar = [parpadear(caraMia), parpadear(caraRival)];
-  const caras = [yo === 0 ? caraMia : caraRival, yo === 0 ? caraRival : caraMia];
-  const pintarNombres = () => { $(".n-rival").textContent = nombres[rv]; $(".n-yo").textContent = nombres[yo]; };
+  const caras = Array.from({ length: n }, (_, j) => {
+    const c = el(cara(formas[j] ?? 2, j === yo ? "tu cara" : `cara de ${esc(nombres[j] || "otro jugador")}`));
+    caraSlots[j].append(c);
+    return c;
+  });
+  const cesar = caras.map((c) => parpadear(c));
+  const quienEs = (j) => (j === yo ? "vos" : de4 && P(j) === miP ? `tu compañero, ${nombres[j]}` : nombres[j]);
+  const pintarNombres = () => { nombreEl.forEach((e, j) => { e.textContent = nombres[j]; }); };
   pintarNombres();
-  montones.forEach((m, j) => { m.querySelector(".pila-dorsos").innerHTML = `<div class="capa c2">${dorso(dorsoDe(j))}</div><div class="capa c1">${dorso(dorsoDe(j))}</div>`; });
+  montones.forEach((m, p) => { m.querySelector(".pila-dorsos").innerHTML = `<div class="capa c2">${dorso(dorsoDe(p))}</div><div class="capa c1">${dorso(dorsoDe(p))}</div>`; });
   $(".mazo-chico .pila-dorsos").innerHTML = `<div class="capa c2">${dorso("clasico")}</div><div class="capa c1">${dorso("clasico")}</div>`;
 
   // ---------- pantalla completa y sonido ----------
@@ -131,12 +175,15 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   let V = fuente.vista();
   let elegida = null;            // id de la carta de mi mano que estoy por tirar
   const sel = new Set();         // cartas de la mesa marcadas para levantar
-  const ayuda = !!fuente.esLocal && fuente.dificultad === "tranquilo";   // la tiza y las jugadas solas: solo con Don Tranqui
+  const ayuda = !!fuente.esLocal && (fuente.ayuda ?? fuente.dificultad === "tranquilo");   // la tiza y las jugadas solas: solo con Don Tranqui
   let soplando = false;          // marcando un soplo
   const selSoplo = new Set();    // lo marcado para soplar (incluye la carta que tiró el otro)
   const soploBtn = $(".soplo-btn");
   let enviando = false, ultimoAviso = 0;
-  let yoQuiero = false, rivalQuiere = false, rivalNo = false, alFinLlamado = -1;
+  let yoQuiero = false, rivalQuiere = false, rivalNo = false, alFinLlamado = -1, quienPide = null;
+  const otroNombre = () => (de4 ? quienPide || "Alguien" : nombres[rv]);
+  /** Risa para la pareja del asiento `j` y bronca para la otra. */
+  const reaccionarParejas = (j, ms) => caras.forEach((c, k) => reaccionar(c, P(k) === P(j) ? "risa" : "bronca", ms));
   const serie = [0, 0];
   let serieViva = false;
 
@@ -220,8 +267,13 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
       b.classList.toggle("elegida", elegida === id);
       return b;
     }));
-    const nr = V.enMano[rv];
-    rivalMano.innerHTML = Array.from({ length: nr }, () => `<div class="carta dorso-chico">${dorso(dorsoDe(rv))}</div>`).join("");
+    manosEl.forEach((m, j) => {
+      if (!m) return;
+      const k = V.enMano[j] ?? 0;
+      if (m.dataset.k === String(k)) return;
+      m.dataset.k = k;
+      m.innerHTML = Array.from({ length: k }, () => `<div class="carta dorso-chico">${dorso(dorsoDe(j))}</div>`).join("");
+    });
   }
   function pintarMontones() {
     montones.forEach((m, j) => {
@@ -237,18 +289,20 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     mz.classList.toggle("vacio", !V.mazo);
   }
   function pintarPuntos() {
-    puntosEl.forEach((p, j) => { p.querySelector("b").textContent = V.puntos[j]; p.querySelector("small").textContent = `de ${V.meta}`; p.classList.toggle("cerca", V.puntos[j] >= V.meta - 3); });
+    puntosEl.forEach((p, j) => { p.querySelector("b").textContent = V.puntos[j]; const sm = p.querySelector("small"); if (sm) sm.textContent = `de ${V.meta}`; p.classList.toggle("cerca", V.puntos[j] >= V.meta - 3); });
+    const tm = $(".tanteo-meta");
+    if (tm) tm.textContent = `de ${V.meta}`;
   }
   function pintarTurno() {
     const t = V.fase === "jugando" ? V.turno : null;
     caraSlots.forEach((c, j) => c.classList.toggle("turno", t === j));
     mesa.classList.toggle("mi-turno", t === yo);
-    $(".sub-rival").textContent = t === rv ? "piensa…" : V.reparte === rv ? "reparte" : "rival";
+    subEl.forEach((s, j) => { if (s) s.textContent = t === j ? "piensa…" : V.reparte === j ? "reparte" : de4 && P(j) === miP ? "compañero" : "rival"; });
     if (soplando) ayudaEl.textContent = "marcá las que sumaban 15 con la que tiró";
     else if (V.fase === "ultima") ayudaEl.textContent = V.soplo ? "última carta de la mano" : "última carta: se cierra la mano";
     else if (V.fase !== "jugando") ayudaEl.textContent = V.fase === "recuento" ? "recuento de la mano" : "";
     else if (t === yo) ayudaEl.textContent = elegida ? (ayuda ? "tocá lo que levantás" : "marcá lo que levantás, o tirala") : "te toca: arrastrá una carta a la mesa";
-    else ayudaEl.textContent = `le toca a ${nombres[rv]}`;
+    else ayudaEl.textContent = `le toca a ${quienEs(t)}`;
   }
   function pintarTiza() {
     pintarAcciones();
@@ -478,7 +532,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   // ---------- eventos del motor ----------
   function eventos(v, ev) {
     const antesMesa = new Map([...mesaCartas.querySelectorAll(".carta-mesa")].map((b) => [b.dataset.id, b.getBoundingClientRect()]));
-    const rivalManoRect = rivalMano.lastElementChild?.getBoundingClientRect() || rectDe(rivalMano);
+    const manoRects = manosEl.map((m) => (m ? m.lastElementChild?.getBoundingClientRect() || rectDe(m) : null));
     const mazoRect = rectDe($(".mazo-chico .pila-dorsos"));
     V = v;
     pintar();
@@ -486,38 +540,41 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     for (const e of ev) {
       if (e.t === "jugada") {
         const mia = e.jugador === yo;
-        const desde = mia ? (ultimaRect || ultimaMia?.desde) : rivalManoRect;
+        const desde = mia ? (ultimaRect || ultimaMia?.desde) : manoRects[e.jugador];
         ultimaRect = null; ultimaMia = null;
         sonido.play("poner");
         if (!e.levanta.length) {
           const nodo = mesaCartas.querySelector(`[data-id="${e.carta}"]`);
           if (nodo) { nodo.style.opacity = "0"; volar(e.carta, desde, nodo.getBoundingClientRect(), { despues: () => { nodo.style.opacity = ""; } }); }
         } else {
-          const hacia = rectDe(montones[e.jugador].querySelector(".pila-dorsos"));
+          const hacia = rectDe(montones[P(e.jugador)].querySelector(".pila-dorsos"));
           volar(e.carta, desde, hacia, { ms: 460 });
           e.levanta.forEach((c, k) => setTimeout(() => volar(c, antesMesa.get(c), hacia, { ms: 420 }), 60 + k * 50));
           setTimeout(() => sonido.play("llevar"), 200);
           if (e.levanta.concat(e.carta).includes("7-oro")) {
             if (mia) { sonido.voz("siete_oro", "coincidencia"); gritar("¡El siete de oro!", "chico"); }
+            else if (P(e.jugador) === miP) { sonido.play("chin"); gritar("¡El siete de oro!", "chico"); }
             else gritar("El siete de oro…", "rival chico");
           }
         }
         if (e.escoba) {
           setTimeout(() => {
-            gritar("¡Escoba!", mia ? "" : "rival");
-            if (mia) { sonido.voz("escoba", "chin"); vibrar([20, 40, 60]); } else sonido.play("chin");
-            reaccionar(caras[e.jugador], "risa", 1400); reaccionar(caras[1 - e.jugador], "bronca", 1400);
+            const nuestra = P(e.jugador) === miP;
+            gritar("¡Escoba!", nuestra ? "" : "rival");
+            if (mia) { sonido.voz("escoba", "chin"); vibrar([20, 40, 60]); } else { sonido.play("chin"); if (nuestra) vibrar(30); }
+            if (de4 && !mia) mostrarAviso(`Escoba de ${quienEs(e.jugador)}`);
+            reaccionarParejas(e.jugador, 1400);
           }, 380);
         }
       } else if (e.t === "soplo") {
-        const mio = e.jugador === yo;
-        const hacia = rectDe(montones[e.jugador].querySelector(".pila-dorsos"));
+        const mio = P(e.jugador) === miP;   // lo sopló alguien de mi pareja (de a 2, yo)
+        const hacia = rectDe(montones[P(e.jugador)].querySelector(".pila-dorsos"));
         e.cartas.forEach((c, k) => setTimeout(() => volar(c, antesMesa.get(c), hacia, { ms: 420 }), 60 + k * 50));
         setTimeout(() => sonido.play("llevar"), 200);
-        gritar(mio ? "¡Soplo!" : "¡Te soplaron!", mio ? "" : "rival");
-        if (mio) { sonido.play("chin"); vibrar([20, 40, 60]); }
-        else { sonido.play("rechazo"); mostrarAviso(`${nombres[e.jugador]} te sopló ${e.cartas.length} cartas`); }
-        reaccionar(caras[e.jugador], "risa", 1400); reaccionar(caras[1 - e.jugador], "bronca", 1400);
+        gritar(mio || e.de !== yo ? "¡Soplo!" : "¡Te soplaron!", mio ? "" : "rival");
+        if (mio) { sonido.play("chin"); vibrar([20, 40, 60]); if (e.jugador !== yo) mostrarAviso(`${nombres[e.jugador]} le sopló ${e.cartas.length} cartas a ${nombres[e.de]}`); }
+        else { sonido.play("rechazo"); mostrarAviso(e.de === yo ? `${nombres[e.jugador]} te sopló ${e.cartas.length} cartas` : `${nombres[e.jugador]} le sopló ${e.cartas.length} cartas a ${quienEs(e.de)}`); }
+        reaccionarParejas(e.jugador, 1400);
         if (e.cartas.includes("7-oro")) setTimeout(() => gritar(mio ? "¡El siete de oro!" : "El siete de oro…", mio ? "chico" : "rival chico"), 900);
       } else if (e.t === "repartir" || e.t === "reparto") {
         sonido.play("carta");
@@ -527,19 +584,20 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
           [...mesaCartas.querySelectorAll(".carta-mesa")].forEach((b, k) => { b.style.opacity = "0"; setTimeout(() => volar(b.dataset.id, mazoRect, b.getBoundingClientRect(), { ms: 300, despues: () => { b.style.opacity = ""; } }), 500 + k * 110); });
           if (e.escobasMesa) {
             setTimeout(() => {
-              const mio = e.reparte === yo;
+              const mio = P(e.reparte) === miP;
               gritar(e.escobasMesa === 2 ? "¡Dos escobas!" : "¡Escoba de mesa!", mio ? "chico" : "rival chico");
-              mostrarAviso(`La mesa sumaba ${e.escobasMesa * 15}: ${mio ? "te la llevás vos, que repartiste" : `se la lleva ${nombres[e.reparte]}, que repartió`}`);
-              if (mio) sonido.voz("escoba", "chin"); else sonido.play("chin");
+              mostrarAviso(`La mesa sumaba ${e.escobasMesa * 15}: ${e.reparte === yo ? "te la llevás vos, que repartiste" : mio ? `es de tu pareja: repartió ${nombres[e.reparte]}` : `se la lleva ${nombres[e.reparte]}, que repartió`}`);
+              if (e.reparte === yo) sonido.voz("escoba", "chin"); else sonido.play("chin");
             }, 700);
           }
           if (e.mano > 1 || v.puntos[0] + v.puntos[1] > 0) mostrarAviso(`Mano ${e.mano} · reparte ${e.reparte === yo ? "vos" : nombres[e.reparte]}`);
           recuentoEl.hidden = true;
         }
       } else if (e.t === "barrida") {
-        const hacia = rectDe(montones[e.jugador].querySelector(".pila-dorsos"));
+        const hacia = rectDe(montones[P(e.jugador)].querySelector(".pila-dorsos"));
         e.cartas.forEach((c, k) => setTimeout(() => volar(c, antesMesa.get(c), hacia, { ms: 420 }), 500 + k * 60));
-        setTimeout(() => mostrarAviso(`Lo que quedó en la mesa: para ${e.jugador === yo ? "vos" : nombres[e.jugador]} (no es escoba)`), 500);
+        const para = !de4 ? (e.jugador === yo ? "vos" : nombres[e.jugador]) : P(e.jugador) === miP ? "tu pareja" : "ellos";
+        setTimeout(() => mostrarAviso(`Lo que quedó en la mesa: para ${para} (no es escoba)`), 500);
         esperar = 1200;
       } else if (e.t === "recuento") {
         setTimeout(() => mostrarRecuento(), esperar + 900);
@@ -551,36 +609,37 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
         yoQuiero = rivalQuiere = rivalNo = false;
         finEl.hidden = true; recuentoEl.hidden = true;
       } else if (e.t === "quiere_revancha") {
-        if (e.jugador !== yo) rivalQuiere = true;
+        if (e.jugador !== yo) { rivalQuiere = true; quienPide = nombres[e.jugador]; }
         pintarRevancha();
       } else if (e.t === "no_revancha") {
-        if (e.jugador !== yo) { rivalNo = true; rivalQuiere = false; yoQuiero = false; }
+        if (e.jugador !== yo) { rivalNo = true; rivalQuiere = false; yoQuiero = false; quienPide = nombres[e.jugador]; }
         pintarRevancha();
       }
     }
   }
 
-  // ---------- recuento de la mano ----------
+  // ---------- recuento de la mano (por pareja) ----------
+  const colYo = de4 ? "nosotros" : "vos", colOtro = () => (de4 ? "ellos" : esc(nombres[rv]));
   // la setenta: sietes; si empatan en sietes, se muestran los seises que la desempatan
   const sietes = (r, j) => `${r.sietes[j]} ${r.sietes[j] === 1 ? "siete" : "sietes"}${r.sietes[0] === r.sietes[1] ? ` · ${r.seises[j]} ${r.seises[j] === 1 ? "seis" : "seises"}` : ""}`;
   const marca = (g, j) => (g === j ? `<i class="gana">●</i>` : "");
   function mostrarRecuento() {
     const r = V.recuento;
     if (!r || V.fase !== "recuento") return;
-    const fila = (n, a, b, g) => `<tr><th scope="row">${n}</th><td>${a}${marca(g, yo)}</td><td>${b}${marca(g, rv)}</td></tr>`;
+    const fila = (n, a, b, g) => `<tr><th scope="row">${n}</th><td>${a}${marca(g, miP)}</td><td>${b}${marca(g, suP)}</td></tr>`;
     recuentoEl.innerHTML = `
       <div class="fin-caja pizarra">
         <p class="fin-titulo chico">Mano ${r.mano}</p>
         <table class="fin-tabla">
-          <thead><tr><th></th><th scope="col">vos</th><th scope="col">${esc(nombres[rv])}</th></tr></thead>
+          <thead><tr><th></th><th scope="col">${colYo}</th><th scope="col">${colOtro()}</th></tr></thead>
           <tbody>
-            ${fila("escobas", r.escobas[yo], r.escobas[rv], null)}
-            ${fila("cartas", r.cartas[yo], r.cartas[rv], r.gana.cartas)}
-            ${fila("oros", r.oros[yo], r.oros[rv], r.gana.oros)}
-            ${fila("siete de oro", r.gana.siete === yo ? "✓" : "—", r.gana.siete === rv ? "✓" : "—", r.gana.siete)}
+            ${fila("escobas", r.escobas[miP], r.escobas[suP], null)}
+            ${fila("cartas", r.cartas[miP], r.cartas[suP], r.gana.cartas)}
+            ${fila("oros", r.oros[miP], r.oros[suP], r.gana.oros)}
+            ${fila("siete de oro", r.gana.siete === miP ? "✓" : "—", r.gana.siete === suP ? "✓" : "—", r.gana.siete)}
             ${fila("setenta", sietes(r, yo), sietes(r, rv), r.gana.setenta)}
-            <tr class="suma"><th scope="row">esta mano</th><td>+${r.total[yo]}</td><td>+${r.total[rv]}</td></tr>
-            <tr class="van"><th scope="row">van</th><td>${r.despues[yo]}</td><td>${r.despues[rv]}</td></tr>
+            <tr class="suma"><th scope="row">esta mano</th><td>+${r.total[miP]}</td><td>+${r.total[suP]}</td></tr>
+            <tr class="van"><th scope="row">van</th><td>${r.despues[miP]}</td><td>${r.despues[suP]}</td></tr>
           </tbody>
         </table>
         <p class="fin-sub">${r.gana.setenta === null ? "La setenta quedó empatada en sietes y en seises: no la cobra nadie. " : ""}Se juega a ${V.meta}.</p>
@@ -601,7 +660,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     const listo = V.listos?.[yo];
     b.disabled = !!listo;
     const seg = V.recuentoHasta ? Math.max(0, Math.ceil((V.recuentoHasta - fuente.ahora()) / 1000)) : 0;
-    b.textContent = listo ? `Esperando a ${nombres[rv]}…` : `Seguir${seg ? ` (${seg})` : ""}`;
+    b.textContent = listo ? `Esperando a ${de4 ? "los demás" : nombres[suP]}…` : `Seguir${seg ? ` (${seg})` : ""}`;
   }
   const timerRecuento = setInterval(() => { if (!recuentoEl.hidden) pintarRecuentoBoton(); if (V.fase === "ultima") pintarAcciones(); }, 500);
 
@@ -609,7 +668,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   function mostrarFin() {
     if (V.fase !== "fin" || V.ganador === null) return;
     recuentoEl.hidden = true;
-    const gane = V.ganador === yo;
+    const gane = V.ganador === miP;
     if (alFinLlamado !== V.seq) {
       alFinLlamado = V.seq;
       serie[V.ganador]++;
@@ -617,22 +676,22 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
       try { alFin?.(V); } catch (err) { console.error(err); }
     }
     if (gane) sonido.voz("ganamos", "gane"); else sonido.play("perdi");
-    reaccionar(caras[V.ganador], "risa", 2500); reaccionar(caras[1 - V.ganador], "bronca", 2500);
+    reaccionarParejas(V.ganador, 2500);
     const r = V.recuento;
-    const manos = V.historial.map((h) => `<tr><th scope="row">mano ${h.mano}</th><td>+${h.total[yo]}</td><td>+${h.total[rv]}</td></tr>`).join("");
+    const manos = V.historial.map((h) => `<tr><th scope="row">mano ${h.mano}</th><td>+${h.total[miP]}</td><td>+${h.total[suP]}</td></tr>`).join("");
     finEl.innerHTML = `
       <div class="fin-caja pizarra">
-        <p class="fin-titulo ${gane ? "gane" : "perdi"}">${gane ? "¡Ganaste!" : "Perdiste"}</p>
-        <p class="fin-sub"><b>${V.puntos[yo]}</b> a <b>${V.puntos[rv]}</b> en ${V.historial.length} ${V.historial.length === 1 ? "mano" : "manos"}${r ? ` · última mano: ${r.escobas[yo]} ${r.escobas[yo] === 1 ? "escoba" : "escobas"} tuyas` : ""}</p>
+        <p class="fin-titulo ${gane ? "gane" : "perdi"}">${gane ? (de4 ? "¡Ganamos!" : "¡Ganaste!") : de4 ? "Perdimos" : "Perdiste"}</p>
+        <p class="fin-sub"><b>${V.puntos[miP]}</b> a <b>${V.puntos[suP]}</b> en ${V.historial.length} ${V.historial.length === 1 ? "mano" : "manos"}${r ? ` · última mano: ${r.escobas[miP]} ${r.escobas[miP] === 1 ? "escoba" : "escobas"} ${de4 ? "de tu pareja" : "tuyas"}` : ""}</p>
         <table class="fin-tabla">
-          <thead><tr><th></th><th scope="col">vos</th><th scope="col">${esc(nombres[rv])}</th></tr></thead>
-          <tbody>${manos}<tr class="van"><th scope="row">total</th><td>${V.puntos[yo]}</td><td>${V.puntos[rv]}</td></tr></tbody>
+          <thead><tr><th></th><th scope="col">${colYo}</th><th scope="col">${colOtro()}</th></tr></thead>
+          <tbody>${manos}<tr class="van"><th scope="row">total</th><td>${V.puntos[miP]}</td><td>${V.puntos[suP]}</td></tr></tbody>
         </table>
-        ${serieViva ? `<p class="fin-serie">Serie: <b>${serie[yo]}</b> a <b>${serie[rv]}</b></p>` : ""}
+        ${serieViva ? `<p class="fin-serie">Serie: <b>${serie[miP]}</b> a <b>${serie[suP]}</b></p>` : ""}
         <div class="fin-pedido" hidden></div>
         <div class="fin-botones">
           <button class="boton primario revancha" data-a="revancha">Revancha</button>
-          ${otraDificultad ? `<button class="boton" data-a="dificultad">Cambiar de rival</button>` : ""}
+          ${otraDificultad ? `<button class="boton" data-a="dificultad">${de4 ? "Cambiar de compañero" : "Cambiar de rival"}</button>` : ""}
           <button class="boton suave" data-a="salir">Salir</button>
         </div>
       </div>`;
@@ -646,15 +705,15 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     const pedido = finEl.querySelector(".fin-pedido");
     if (rivalQuiere && !yoQuiero) {
       pedido.hidden = false;
-      pedido.innerHTML = `<p><b>${esc(nombres[rv])}</b> te pide la revancha</p>
+      pedido.innerHTML = `<p><b>${esc(otroNombre())}</b> te pide la revancha</p>
         <div class="fin-pedido-botones"><button class="boton primario" data-a="aceptar">Aceptar</button><button class="boton" data-a="declinar">Declinar</button></div>`;
       b.hidden = true;
       return;
     }
     b.hidden = false;
     pedido.hidden = !(yoQuiero || rivalNo);
-    pedido.innerHTML = yoQuiero ? `<p>Le pediste la revancha a <b>${esc(nombres[rv])}</b>. Esperando que acepte…</p>`
-      : rivalNo ? `<p><b>${esc(nombres[rv])}</b> no quiere la revancha.</p>` : "";
+    pedido.innerHTML = yoQuiero && de4 ? `<p>Pediste la revancha. Esperando a los demás…</p>` : yoQuiero ? `<p>Le pediste la revancha a <b>${esc(otroNombre())}</b>. Esperando que acepte…</p>`
+      : rivalNo ? `<p><b>${esc(otroNombre())}</b> no quiere la revancha.</p>` : "";
     b.disabled = yoQuiero;
     b.textContent = yoQuiero ? "Esperando…" : rivalNo ? "Pedirla otra vez" : fuente.esLocal ? "Revancha" : "Pedir revancha";
   }
@@ -678,7 +737,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     dejar.innerHTML = `
       <div class="fin-caja">
         <p class="fin-titulo chico" id="dejar-tit">¿Te vas?</p>
-        <p class="fin-sub">${fuente.esLocal ? "La partida queda sin terminar." : `La partida queda sin terminar y <b>${esc(nombres[rv])}</b> se entera de que te fuiste.`}</p>
+        <p class="fin-sub">${fuente.esLocal ? "La partida queda sin terminar." : de4 ? (fuente.esAnfitrion ? "La mesa la armaste vos: si te vas, se termina para todos." : "Tu lugar lo toma un bot y los demás siguen.") : `La partida queda sin terminar y <b>${esc(nombres[rv])}</b> se entera de que te fuiste.`}</p>
         <div class="fin-botones"><button class="boton primario" data-d="seguir">Seguir jugando</button><button class="boton suave" data-d="irme">Salir de la partida</button></div>
       </div>`;
     dejar.hidden = false;
@@ -686,7 +745,7 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   }
   function seFueElRival() {
     cerrarDejar();
-    dejar.innerHTML = `<div class="fin-caja"><p class="fin-titulo chico" id="dejar-tit">Se fue</p><p class="fin-sub"><b>${esc(nombres[rv])}</b> dejó la mesa.</p>
+    dejar.innerHTML = `<div class="fin-caja"><p class="fin-titulo chico" id="dejar-tit">Se fue</p><p class="fin-sub"><b>${esc(de4 ? nombres[0] : nombres[rv])}</b> dejó la mesa${de4 ? ": la había armado y se terminó para todos" : ""}.</p>
       <div class="fin-botones"><button class="boton primario" data-d="irme">Volver al inicio</button></div></div>`;
     dejar.hidden = false;
   }
@@ -713,7 +772,8 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
   const cerrarBandeja = (e) => { if (!bandeja.hidden && !e.target.closest(".emotes-bandeja, .emote-btn")) bandeja.hidden = true; };
   document.addEventListener("pointerdown", cerrarBandeja, true);
   function globo(j, txt, dicho = false) {
-    const b = $(j === yo ? ".mia-burbuja" : ".rival-burbuja");
+    const b = caraSlots[j]?.querySelector(".burbuja");
+    if (!b) return;
     b.textContent = txt;
     b.classList.toggle("dicho", dicho);
     b.classList.remove("ver"); void b.offsetWidth; b.classList.add("ver");

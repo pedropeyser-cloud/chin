@@ -14,6 +14,13 @@
 // de la mesa que sumaban 15 con ella, y se las lleva (no es escoba). Si no suman 15 no pasa nada: ni castigo ni aviso,
 // y el motor tampoco dice si había soplo (la vista solo muestra que la ventana está abierta, que es público).
 // Si la última carta de la mano se tira sin levantar, hay `ventanaFinal` ms para soplar antes del recuento.
+//
+// DE A 4 (`jugadores: 4`, agregado el 2026-11-17): dos parejas enfrentadas. Los asientos van de 0 a 3 en el orden de la
+// ronda (antihoraria: después del 0 juega el 1, que está a su derecha); pareja = asiento % 2 (0 y 2 contra 1 y 3).
+// Mismas reglas contando todo por pareja: `levantadas`, `escobas`, `puntos`, `recuento` y `ganador` son por pareja;
+// `mano`, `listos`, `turno`, `reparte` y `ultimoLevanto` son por asiento. Reparte rotando a la derecha y empieza el de su
+// derecha. La escoba de mesa es para la pareja del que reparte. Pueden soplar los dos rivales del que tiró, hasta que
+// juega el que sigue. Con 2 jugadores, asiento = pareja y todo queda como antes.
 
 export const PALOS = ["oro", "copa", "espada", "basto"];
 export const NUMEROS = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12];   // 10 = sota, 11 = caballo, 12 = rey (ids iguales a las del truco)
@@ -80,10 +87,11 @@ const copiar = (e) => JSON.parse(JSON.stringify(e));
  * @param {{ nombres?: string[], semilla?: number, ahora?: number, meta?: number, reparte?: 0|1, pausaRecuento?: number, mazo?: string[] }} o
  * `mazo` (solo pruebas): el orden exacto del mazo (se reparte desde el principio).
  */
-export function nuevaPartida({ nombres = ["Vos", "Rival"], semilla, ahora = 0, meta = META, reparte, pausaRecuento = 20000, ventanaFinal = VENTANA_FINAL, mazo } = {}) {
+export function nuevaPartida({ nombres, jugadores = 2, semilla, ahora = 0, meta = META, reparte, pausaRecuento = 20000, ventanaFinal = VENTANA_FINAL, mazo } = {}) {
+  const n = jugadores === 4 ? 4 : 2;
   const s = {
-    juego: "escoba",
-    nombres: [...nombres],
+    juego: "escoba", n,
+    nombres: nombres ? [...nombres] : n === 4 ? ["Vos", "Derecha", "Compañero", "Izquierda"] : ["Vos", "Rival"],
     rng: (Number.isFinite(semilla) ? semilla : Math.floor(Math.random() * 2 ** 31)) >>> 0,
     meta, pausaRecuento, ventanaFinal,
     soplo: null,            // { de, para, carta }: la ventana para soplar la última carta tirada sin levantar
@@ -93,29 +101,40 @@ export function nuevaPartida({ nombres = ["Vos", "Rival"], semilla, ahora = 0, m
     reparte: 0,
     fase: "jugando",
     ganador: null,
-    mazo: [], mesa: [], mano: [[], []], levantadas: [[], []], escobas: [[], []],
+    mazo: [], mesa: [], mano: vacias(n), levantadas: [[], []], escobas: [[], []],
     turno: 0, turnoDesde: ahora, ultimoLevanto: null,
-    recuento: null, listos: [false, false], recuentoHasta: null,
+    recuento: null, listos: Array(n).fill(false), recuentoHasta: null,
     historial: [],          // un resumen por mano: lo que ganó cada uno
     ultimo: null, seq: 0, mazoFijo: mazo ? [...mazo] : null,
   };
-  s.reparte = reparte === 0 || reparte === 1 ? reparte : (azar(s) < 0.5 ? 0 : 1);
+  // de a 2 se sigue sorteando igual que antes (mismas semillas, mismos repartos)
+  s.reparte = Number.isInteger(reparte) && reparte >= 0 && reparte < n ? reparte : n === 2 ? (azar(s) < 0.5 ? 0 : 1) : Math.floor(azar(s) * n);
   const ev = [];
   empezarMano(s, ahora, ev, true);
   s.eventosIniciales = ev;
   return s;
 }
 
+const vacias = (n) => Array.from({ length: n }, () => []);
+/** Cuántos juegan (los estados viejos no lo guardaban: eran de a 2). */
+export const jugadoresDe = (s) => s.n || 2;
+/** La pareja de un asiento: de a 2 es el mismo asiento; de a 4, 0 y 2 contra 1 y 3. */
+export const pareja = (j) => j % 2;
+const siguiente = (s, j) => (j + 1) % jugadoresDe(s);
+
 function repartirManos(s) {
-  for (let k = 0; k < MANO; k++) for (const j of [1 - s.reparte, s.reparte]) if (s.mazo.length) s.mano[j].push(s.mazo.shift());
+  const n = jugadoresDe(s);
+  // de a una, empezando por el de la derecha del que reparte (de a 2 queda como antes: el otro y después el que reparte)
+  for (let k = 0; k < MANO; k++) for (let i = 1; i <= n; i++) { const j = (s.reparte + i) % n; if (s.mazo.length) s.mano[j].push(s.mazo.shift()); }
 }
 
 function empezarMano(s, ahora, ev, primera = false) {
-  if (!primera) s.reparte = 1 - s.reparte;
+  const n = jugadoresDe(s);
+  if (!primera) s.reparte = siguiente(s, s.reparte);
   s.manoN++;
   s.mazo = s.mazoFijo && s.manoN === 1 ? [...s.mazoFijo] : mezclar(s, mazoCompleto());
-  s.mesa = []; s.mano = [[], []]; s.levantadas = [[], []]; s.escobas = [[], []];
-  s.ultimoLevanto = null; s.recuento = null; s.listos = [false, false]; s.recuentoHasta = null; s.fase = "jugando";
+  s.mesa = []; s.mano = vacias(n); s.levantadas = [[], []]; s.escobas = [[], []];
+  s.ultimoLevanto = null; s.recuento = null; s.listos = Array(n).fill(false); s.recuentoHasta = null; s.fase = "jugando";
   s.soplo = null; s.cierreHasta = null;
   repartirManos(s);
   for (let k = 0; k < 4; k++) s.mesa.push(s.mazo.shift());
@@ -124,14 +143,14 @@ function empezarMano(s, ahora, ev, primera = false) {
   let escobasMesa = 0;
   if (total === 15 || total === 30) {
     escobasMesa = total / 15;
-    const j = s.reparte;
-    s.levantadas[j].push(...s.mesa);
-    for (let k = 0; k < escobasMesa; k++) s.escobas[j].push(s.mesa[k]);
+    const j = s.reparte, p = pareja(j);
+    s.levantadas[p].push(...s.mesa);
+    for (let k = 0; k < escobasMesa; k++) s.escobas[p].push(s.mesa[k]);
     s.ultimoLevanto = j;
     s.mesaInicial = [...s.mesa];
     s.mesa = [];
   } else s.mesaInicial = [...s.mesa];
-  s.turno = 1 - s.reparte;
+  s.turno = siguiente(s, s.reparte);
   s.turnoDesde = ahora;
   ev.push({ t: "reparto", mano: s.manoN, reparte: s.reparte, mesa: [...s.mesaInicial], escobasMesa });
 }
@@ -162,7 +181,7 @@ function cerrarMano(s, ahora, ev) {
   if (s.mesa.length) {
     const j = s.ultimoLevanto ?? s.reparte;
     ev.push({ t: "barrida", jugador: j, cartas: [...s.mesa] });
-    s.levantadas[j].push(...s.mesa);
+    s.levantadas[pareja(j)].push(...s.mesa);
     s.mesa = [];
   }
   const r = contarMano(s);
@@ -179,7 +198,7 @@ function cerrarMano(s, ahora, ev) {
     ev.push({ t: "fin", ganador: s.ganador });
   } else {
     s.fase = "recuento";
-    s.listos = [false, false];
+    s.listos = Array(jugadoresDe(s)).fill(false);
     s.recuentoHasta = ahora + s.pausaRecuento;
   }
 }
@@ -191,7 +210,7 @@ function rechazo(motivo) { return { motivo, mensaje: MENSAJES[motivo] }; }
  *           `{ t: "seguir" }` (en el recuento: listo para la mano que viene)
  */
 export function aplicar(estado, jugador, accion, ahora = 0) {
-  if (jugador !== 0 && jugador !== 1) throw new Error("jugador inválido");
+  if (!Number.isInteger(jugador) || jugador < 0 || jugador >= jugadoresDe(estado)) throw new Error("jugador inválido");
   if (!accion || typeof accion !== "object") throw new Error("acción inválida");
   if (estado.fase === "fin") return { estado, eventos: [], rechazo: rechazo("fin") };
   const s = copiar(estado);
@@ -203,7 +222,7 @@ export function aplicar(estado, jugador, accion, ahora = 0) {
     if (s.listos[jugador]) return { estado, eventos: [], rechazo: rechazo("ya_listo") };
     s.listos[jugador] = true;
     ev.push({ t: "listo", jugador });
-    if (s.listos[0] && s.listos[1]) empezarMano(s, ahora, ev);
+    if (s.listos.every(Boolean)) empezarMano(s, ahora, ev);
     s.seq++;
     return { estado: s, eventos: ev };
   }
@@ -212,12 +231,12 @@ export function aplicar(estado, jugador, accion, ahora = 0) {
     if (!Array.isArray(accion.cartas) || accion.cartas.length > 12 || accion.cartas.some((c) => !idValido(c))) throw new Error("soplo mal formado");
     if (new Set(accion.cartas).size !== accion.cartas.length) throw new Error("carta repetida");
     const sp = s.soplo;
-    if (!sp || sp.para !== jugador || (s.fase !== "jugando" && s.fase !== "ultima")) return { estado, eventos: [], rechazo: rechazo("no_soplo") };
+    if (!puedeSoplar(s, jugador)) return { estado, eventos: [], rechazo: rechazo("no_soplo") };
     if (!accion.cartas.includes(sp.carta) || accion.cartas.length < 2 || accion.cartas.some((c) => !s.mesa.includes(c)) || suma(accion.cartas) !== 15) {
       return { estado, eventos: [], rechazo: rechazo("soplo_no") };
     }
     s.mesa = s.mesa.filter((c) => !accion.cartas.includes(c));
-    s.levantadas[jugador].push(...accion.cartas);
+    s.levantadas[pareja(jugador)].push(...accion.cartas);
     s.ultimoLevanto = jugador;
     s.soplo = null;
     ev.push({ t: "soplo", jugador, de: sp.de, cartas: [...accion.cartas] });
@@ -241,22 +260,23 @@ export function aplicar(estado, jugador, accion, ahora = 0) {
   let escoba = false;
   if (accion.levanta.length) {
     s.mesa = s.mesa.filter((c) => !accion.levanta.includes(c));
-    s.levantadas[jugador].push(accion.carta, ...accion.levanta);
+    s.levantadas[pareja(jugador)].push(accion.carta, ...accion.levanta);
     s.ultimoLevanto = jugador;
-    if (!s.mesa.length) { escoba = true; s.escobas[jugador].push(accion.carta); }
+    if (!s.mesa.length) { escoba = true; s.escobas[pareja(jugador)].push(accion.carta); }
   } else {
     s.mesa.push(accion.carta);
-    s.soplo = { de: jugador, para: 1 - jugador, carta: accion.carta };
+    // `para`: el que sigue (le toca jugar y es rival); de a 4 también puede soplar el otro rival
+    s.soplo = { de: jugador, para: siguiente(s, jugador), carta: accion.carta };
   }
   s.ultimo = { jugador, carta: accion.carta, levanta: [...accion.levanta], escoba };
   ev.push({ t: "jugada", jugador, carta: accion.carta, levanta: [...accion.levanta], escoba });
 
-  s.turno = 1 - jugador;
+  s.turno = siguiente(s, jugador);
   s.turnoDesde = ahora;
-  if (!s.mano[0].length && !s.mano[1].length) {
+  if (s.mano.every((m) => !m.length)) {
     if (s.mazo.length) {
       repartirManos(s);
-      s.turno = 1 - s.reparte;
+      s.turno = siguiente(s, s.reparte);
       ev.push({ t: "repartir", quedan: s.mazo.length });
     } else if (s.soplo) {
       // la última de la mano se tiró sin levantar: un rato para soplarla antes del recuento (siempre, haya o no soplo)
@@ -290,10 +310,16 @@ export function reloj(estado, ahora) {
   return { estado: s, eventos: ev };
 }
 
+/** Si `jugador` puede soplar ahora: hay ventana abierta y es rival del que tiró (de a 2, el otro). */
+export function puedeSoplar(estado, jugador) {
+  const sp = estado.soplo;
+  return !!sp && pareja(sp.de) !== pareja(jugador) && (estado.fase === "jugando" || estado.fase === "ultima");
+}
+
 /** Las formas de soplar que tiene `jugador` ahora (solo para el bot y las pruebas: la pantalla no lo muestra). */
 export function soplos(estado, jugador) {
   const sp = estado.soplo;
-  if (!sp || sp.para !== jugador || (estado.fase !== "jugando" && estado.fase !== "ultima")) return [];
+  if (!puedeSoplar(estado, jugador)) return [];
   return combinaciones(estado.mesa.filter((c) => c !== sp.carta), sp.carta).map((x) => [sp.carta, ...x]);
 }
 
@@ -309,17 +335,16 @@ export function acciones(estado, jugador) {
   return out;
 }
 
-/** Lo que ve `jugador`: sin la mano del rival ni el orden del mazo. Las levantadas van boca abajo (solo cuántas). */
+/** Lo que ve `jugador`: sin las manos de los otros ni el orden del mazo. Las levantadas van boca abajo (solo cuántas). */
 export function vista(estado, jugador) {
-  const rv = 1 - jugador;
   return {
-    juego: "escoba", yo: jugador, nombres: [...estado.nombres],
+    juego: "escoba", n: jugadoresDe(estado), yo: jugador, nombres: [...estado.nombres],
     fase: estado.fase, ganador: estado.ganador, meta: estado.meta,
     puntos: [...estado.puntos], manoN: estado.manoN, reparte: estado.reparte,
     turno: estado.turno, turnoDesde: estado.turnoDesde,
     mesa: [...estado.mesa],
     mano: [...estado.mano[jugador]],
-    enMano: [estado.mano[0].length, estado.mano[1].length],
+    enMano: estado.mano.map((m) => m.length),
     mazo: estado.mazo.length,
     levantadas: [estado.levantadas[0].length, estado.levantadas[1].length],
     escobas: [[...estado.escobas[0]], [...estado.escobas[1]]],
@@ -328,13 +353,13 @@ export function vista(estado, jugador) {
     historial: copiar(estado.historial),
     ultimo: estado.ultimo ? copiar(estado.ultimo) : null,
     // la ventana para soplar es pública (se vio que tiró sin levantar); si había soplo, no se dice
-    soplo: estado.soplo && estado.soplo.para === jugador ? { carta: estado.soplo.carta } : null,
+    soplo: puedeSoplar(estado, jugador) ? { carta: estado.soplo.carta } : null,
     cierreHasta: estado.cierreHasta ?? null,
     seq: estado.seq,
   };
 }
 
 export const juego = {
-  id: "escoba", nombre: "Escoba de 15", jugadores: [2, 2],
+  id: "escoba", nombre: "Escoba de 15", jugadores: [2, 4],
   nuevaPartida, aplicar, vista, acciones, reloj,
 };

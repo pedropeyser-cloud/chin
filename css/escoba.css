@@ -121,3 +121,79 @@
   .mesa.escoba .pano { margin: 6px 8px; }
   .mesa.escoba .emotes-bandeja { left: auto; right: 12px; }
 }
+
+/* ---------- DE A 4 (dirección C «caras sobre el borde del paño», elegida por Pedro el 2026-11-17) ---------- */
+.mesa.escoba.de4 { --ellos: #9fb6d6; --cw4: clamp(34px, 11vw, 52px); }
+.de4 .tanteo { flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 7px; font-family: Plex; font-size: 11px; color: var(--gris); min-width: 0; }
+.de4 .tanteo .puntos { min-width: 0; }
+.de4 .tanteo .puntos b { font-size: clamp(34px, 9vw, 46px); }
+.de4 .tanteo .rival-puntos b { color: var(--ellos); }
+.de4 .tanteo .mios-puntos b { color: var(--ambar); }
+.de4 .tanteo em { font-style: normal; color: var(--gris); }
+.de4 .fila-bordes { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 16px; position: relative; z-index: 2; min-height: calc(var(--mw) * 1.43 + 6px); }
+.de4 .fila-bordes .ronda { font-family: Caveat; font-weight: 700; font-size: 16px; color: rgba(235,228,212,.38); white-space: nowrap; transform: translateY(-10px); }
+.de4 .rival-monton > b { color: var(--ellos); }
+.de4 .rival-monton .n-escobas { color: var(--ellos); }
+/* el paño deja asomar las caras por el borde */
+.mesa.escoba.de4 .pano { overflow: visible; margin-top: 30px; }
+.de4 .mesa-cartas { inset: 56px 52px 48px; }
+.de4 .asiento { position: absolute; z-index: 7; display: flex; align-items: center; gap: 3px; pointer-events: none; }
+.de4 .asiento .cara-slot { width: var(--cw4); flex: none; }
+.de4 .asiento .cara-jugador { border-radius: 50%; background: var(--noche); }
+.de4 .asiento .cara-slot.turno::after { inset: -4px; }
+.de4 .as-quien { display: grid; justify-items: center; line-height: 1.05; text-align: center; }
+.de4 .as-quien b { font-size: 12px; font-weight: 700; max-width: 70px; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 4px #000; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.de4 .as-n .as-quien b { max-width: 130px; -webkit-line-clamp: 1; }
+.de4 .as-quien small { font-family: Plex; font-size: 9.5px; color: var(--gris); }
+.de4 .mano-dorsos { display: flex; justify-content: center; min-height: 10px; }
+.de4 .mano-dorsos .dorso-chico { width: calc(var(--cw4) * .44); margin: 0 -3px; box-shadow: 0 2px 5px rgba(0,0,0,.5); }
+.de4 .mano-dorsos .dorso-chico:nth-child(1) { transform: rotate(-8deg); } .de4 .mano-dorsos .dorso-chico:nth-child(3) { transform: rotate(8deg); }
+.de4 .as-n { left: 50%; top: calc(var(--cw4) * -.62); transform: translateX(-50%); flex-direction: row; gap: 8px; }
+.de4 .as-n .as-quien { justify-items: start; text-align: left; }
+.de4 .as-n .as-quien b { color: var(--ambar); }
+.de4 .as-o { left: -8px; top: 40%; flex-direction: column; }
+.de4 .as-e { right: -8px; top: 40%; flex-direction: column; }
+/* los globos de cada asiento salen hacia el centro del paño */
+.de4 .as-n .burbuja { left: 50%; top: 100%; transform-origin: top center; }
+.de4 .as-o .burbuja { left: 70%; top: 70%; }
+.de4 .as-e .burbuja { right: 70%; top: 70%; }
+.de4 .soplo-btn { top: auto; bottom: 54px; right: 50%; transform: translateX(50%); }
+.de4 .soplo-btn:active { transform: translateX(50%) scale(.96); }
+.de4 .tiza { top: 30px; }
+.de4 .franja.abajo .mio-monton { margin-left: auto; }
+@media (max-height: 700px) { .de4 .mesa-cartas { inset: 50px 48px 42px; } .mesa.escoba.de4 .pano { margin-top: 26px; } }
+@media (pointer: fine) and (min-width: 900px) {
+  .mesa.escoba.de4 { --cw4: clamp(48px, 7.5dvh, 76px); }
+  .de4 .as-quien b { font-size: 14px; max-width: 120px; }
+  .de4 .mesa-cartas { inset: 60px 110px 52px; }
+}
+
+/* menú: de a 2 / de a 4, y el compañero de a 4 */
+.escoba-menu .modo-escoba { display: flex; gap: 8px; width: 100%; padding: 4px; border-radius: 18px; background: rgba(0,0,0,.25); border: 1px solid var(--linea); }
+.escoba-menu .modo { flex: 1; min-height: 52px; border: 0; border-radius: 14px; background: none; display: grid; justify-items: center; align-content: center; gap: 1px; color: var(--texto-suave, var(--gris)); }
+.escoba-menu .modo b { font-size: 17px; } .escoba-menu .modo small { font-family: Plex; font-size: 10.5px; color: var(--gris); }
+.escoba-menu .modo[aria-checked=true] { background: var(--ambar); color: var(--tinta); } .escoba-menu .modo[aria-checked=true] small { color: rgba(20,23,28,.7); }
+.escoba-menu .de2, .escoba-menu .de4 { display: contents; }
+.escoba-menu .de2[hidden], .escoba-menu .de4[hidden] { display: none; }
+.inicio .socio { flex: 1; min-height: 76px; padding: 8px 6px; border-radius: 16px; border: 1px solid var(--linea); background: var(--superficie); display: flex; flex-direction: column; gap: 3px; align-items: center; justify-content: center; text-align: center; }
+.inicio .socio b { font-size: 15px; } .inicio .socio small { font-family: Plex; font-size: 9.5px; line-height: 1.3; color: var(--gris); }
+.inicio .socio[aria-pressed=true] { border-color: var(--ambar); background: rgba(240,169,59,.1); } .inicio .socio[aria-pressed=true] b { color: var(--ambar); }
+
+/* sala de espera de a 4: las sillas en cruz, como en la mesa */
+/* centrada con márgenes automáticos: si no entra en la pantalla, se scrollea desde el título (con justify-content:
+   center el título quedaba cortado arriba y no se podía llegar) */
+.inicio.sala-de4 { justify-content: flex-start; gap: 16px; }
+.inicio.sala-de4 > :first-child { margin-top: auto; } .inicio.sala-de4 > :last-child { margin-bottom: auto; }
+.sala-de4 .sillas { width: 100%; }
+.sala4 { position: relative; display: grid; grid-template-columns: 1fr 1fr; grid-template-areas: "n n" "o e" "s s"; gap: 10px; width: 100%; max-width: 420px; margin: 0 auto; }
+.sala4 .silla { display: grid; justify-items: center; gap: 2px; padding: 10px 8px; border-radius: 16px; border: 1px solid var(--linea); background: var(--superficie); text-align: center; cursor: pointer; }
+.sala4 .s2 { grid-area: n; width: min(220px, 100%); justify-self: center; } .sala4 .s3 { grid-area: o; } .sala4 .s1 { grid-area: e; } .sala4 .s0 { grid-area: s; width: min(220px, 100%); justify-self: center; cursor: default; }
+.sala4 .silla small { font-family: Plex; font-size: 10px; color: var(--gris); text-transform: uppercase; letter-spacing: .06em; }
+.sala4 .silla b { font-size: 17px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sala4 .silla i { font-style: normal; font-family: Caveat; font-size: 18px; color: var(--ambar); }
+.sala4 .silla.bot i { color: var(--gris); }
+.sala4 .s2 b, .sala4 .s0 b { color: var(--ambar); }
+.sala4 .silla.elegida { border-color: var(--ambar); box-shadow: 0 0 0 2px rgba(240,169,59,.4); }
+.sala4 .silla-acc { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 4px; }
+.sala4 .silla-acc .boton.chico { min-height: 32px; padding: 4px 10px; font-size: 12.5px; }
+.sala4-sol { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 28px; color: var(--gris); opacity: .5; pointer-events: none; }

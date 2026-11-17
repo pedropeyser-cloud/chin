@@ -5,7 +5,8 @@
 //   implacable (El Relámpago): cuenta las cartas que salieron, calcula el riesgo de lo que deja y no se le escapa un soplo.
 // `seLePasa`: chance de no ver que podía levantar (tira igual, y ahí le podés soplar).
 // `sopla`: chance de ver el soplo cuando se lo dejás; `soplaEn`: cuánto tarda en cantarlo (ms desde que tiraste).
-import { acciones, soplos, valor, numero, palo, mazoCompleto, combinaciones } from "./motor.js";
+// De a 4: el riesgo de lo que deja lo mide contra el que sigue (siempre un rival) y sopla si es rival del que tiró.
+import { acciones, soplos, puedeSoplar, jugadoresDe, valor, numero, palo, mazoCompleto, combinaciones } from "./motor.js";
 
 export const DIFICULTADES = {
   tranquilo:  { piensa: [1500, 2600], seLePasa: 0.3, riesgo: 0, sopla: 0.3, soplaEn: [1300, 2300] },
@@ -96,7 +97,7 @@ export function puntaje(estado, jugador, a, nivel = 2) {
   }
   if (nivel > 0) {
     const ocultas = noVistas(estado, jugador).filter((c) => c !== a.carta);
-    const hRival = estado.mano[1 - jugador].length;
+    const hRival = estado.mano[(jugador + 1) % jugadoresDe(estado)].length;   // el que sigue: de a 2 el otro, de a 4 el rival de la derecha
     p -= riesgo(quedan, ocultas, hRival, nivel);
   }
   return p;
@@ -138,7 +139,7 @@ export function soploQueVe(estado, jugador, dificultad = "rapido") {
 export function bot(estado, jugador, ahora, dificultad = "rapido") {
   const d = DIFICULTADES[dificultad] || DIFICULTADES.rapido;
   // soplo: primero, antes de jugar su carta (o en el ratito del final de la mano)
-  if ((estado.fase === "jugando" || estado.fase === "ultima") && estado.soplo?.para === jugador) {
+  if (puedeSoplar(estado, jugador)) {
     const s = soploQueVe(estado, jugador, dificultad);
     if (s) return ahora - estado.turnoDesde >= entre(d.soplaEn, hash(estado.rng, estado.seq, jugador, "sopla en")) ? s : null;
   }
