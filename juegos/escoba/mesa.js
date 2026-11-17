@@ -183,19 +183,32 @@ export function montarMesa(cont, { fuente, salir, otraDificultad, alFin }) {
     const ry = Math.max(0, H / 2 - ch / 2 - 6);
     const anchoMax = Math.max(0, W / 2 - cw / 2 - 6);
     // pocas: óvalo cerca de redondo; muchas: se abre a lo ancho (en la compu el paño es bajo y ancho)
-    const rx = Math.min(anchoMax, n <= 6 ? ry * 1.8 : n <= 7 ? ry * 3.2 : ry * 4.4);
+    let rx = Math.min(anchoMax, n <= 6 ? ry * 1.8 : n <= 7 ? ry * 3.2 : ry * 4.4);
+    // si el paño es ancho (compu en pantalla completa), el óvalo se estira hasta que las cartas no se toquen
+    const perimetro = (a, b) => Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)));
+    // paño bajo (las de arriba y las de abajo se tocarían): hace falta el doble de largo para que vayan alternadas
+    const bajo = 2 * ry < ch * 1.1;
+    while (rx < anchoMax && perimetro(rx, ry) < n * cw * (bajo ? 2.15 : 1.25)) rx = Math.min(anchoMax, rx + 4);
     if (n === 1) { cartas[0].style.left = "50%"; cartas[0].style.top = "50%"; return; }
     // repartidas por largo de arco (no por ángulo): en un óvalo chato no se enciman en las puntas
     const pasos = 360, pts = [], largo = [0];
     for (let i = 0; i <= pasos; i++) { const a = (-90 + (360 * i) / pasos) * Math.PI / 180; pts.push([W / 2 + rx * Math.cos(a), H / 2 + ry * Math.sin(a)]); }
     for (let i = 1; i <= pasos; i++) largo.push(largo[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
     const total = largo[pasos];
+    // con un número par de cartas, corro el reparto un cuarto de paso menos un poquito: así la fila de abajo queda
+    // en ladrillo con la de arriba (si no, cada carta de abajo cae justo debajo de una de arriba)
+    const corrido = n % 2 ? 0 : 0.25 - 1 / (4 * n);
     let i = 0;
-    cartas.forEach((b, k) => {
-      const meta = (total * k) / n;
+    const metas = cartas.map((_, k) => total * (((k / n + corrido) % 1 + 1) % 1));
+    const orden = metas.map((m, k) => [m, k]).sort((x, y) => x[0] - y[0]);
+    const pos = [];
+    for (const [meta, k] of orden) {
       while (i < pasos && largo[i + 1] < meta) i++;
-      b.style.left = `${pts[i][0]}px`;
-      b.style.top = `${pts[i][1]}px`;
+      pos[k] = pts[i];
+    }
+    cartas.forEach((b, k) => {
+      b.style.left = `${pos[k][0]}px`;
+      b.style.top = `${pos[k][1]}px`;
     });
   }
   const vigiaTam = new ResizeObserver(() => acomodarAnillo());

@@ -65,7 +65,7 @@ function invitar(app, ctx) {
   sonido.despertar();
   pedirPantallaCompleta();
   cerrar();
-  const a = crearAnfitrion(ctx.yo());
+  const a = crearAnfitrion(ctx.yo(), { meta: Number(window.__metaCanasta) || 5000 });   // __metaCanasta: solo pruebas
   baja = () => a.cerrar();
   app.innerHTML = `
     <main class="inicio sala">

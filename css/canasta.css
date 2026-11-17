@@ -21,10 +21,10 @@
 .canasta .zona { position: relative; min-height: 0; display: flex; flex-direction: column; gap: 3px; }
 .canasta .mia-zona { border-radius: 14px; transition: box-shadow .12s, background .12s; }
 .canasta.mi-turno .mia-zona.encima { box-shadow: 0 0 0 2px rgba(240,169,59,.7), 0 0 22px 4px rgba(240,169,59,.25); background: rgba(240,169,59,.06); }
-.canasta .zona-info { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 18px; font-family: Plex; font-size: 10.5px; color: var(--gris); padding: 0 4px; }
+.canasta .zona-info { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 26px; flex: none; font-family: Plex; font-size: 10.5px; color: var(--gris); padding: 0 4px; }
 .canasta .mis-canastas { color: var(--ambar); }
 .canasta .rojos { display: flex; gap: 3px; }
-.canasta .rojo { width: calc(var(--jw) * .62); border-radius: 4px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,.5); }
+.canasta .rojo { width: 17px; border-radius: 4px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,.5); }
 .canasta .rojo svg { display: block; width: 100%; height: auto; }
 
 /* los juegos: columnas encimadas hacia abajo, se lee el índice de cada carta */
@@ -106,13 +106,14 @@
 @media (max-height: 720px) { .mesa.canasta { --jw: clamp(26px, min(8.6vw, 5.6dvh), 48px); --hw: clamp(46px, min(14vw, 9.4dvh), 84px); } }
 @media (prefers-reduced-motion: reduce) { .canasta .cara-slot.turno::after, .canasta .mazo-c.pide::after, .canasta .pozo-c.pide::after { animation: none; } .canasta .carta-mano { transition: none; } }
 
-/* compu: mesa más ancha, cartas grandes */
+/* compu: pantalla completa (Pedro, 2026-11-17: «siempre pantalla completa»): la mesa ocupa todo el ancho, cartas grandes */
 @media (pointer: fine) and (min-width: 900px) {
-  .mesa.canasta { max-width: min(980px, 94vw); --hw: clamp(64px, 10.4dvh, 108px); --jw: clamp(38px, 6.6dvh, 62px); --cw: clamp(56px, 9.4dvh, 90px); }
+  .mesa.canasta { max-width: none; --hw: clamp(64px, 10.4dvh, 108px); --jw: clamp(38px, 6.6dvh, 62px); --cw: clamp(56px, 9.4dvh, 90px); }
 }
-/* compu ancha: anulo la grilla de tres columnas del CHIN; la canasta va centrada en una columna */
+/* compu ancha: anulo la grilla de tres columnas del CHIN; la canasta usa todo el ancho de la pantalla */
 @media (pointer: fine) and (min-width: 1100px) and (min-aspect-ratio: 5/4) {
-  .mesa.canasta { display: flex; max-width: min(1040px, 92vw); margin: 0 auto; padding: 0; }
+  .mesa.canasta { display: flex; max-width: none; margin: 0; padding: 0 clamp(12px, 1.6vw, 32px);
+    --hw: clamp(64px, 11.4dvh, 150px); --jw: clamp(38px, 6.6dvh, 84px); --cw: clamp(56px, 10dvh, 124px); }
   .mesa.canasta .franja { flex-wrap: nowrap; padding: 8px 16px; }
   .mesa.canasta .franja .quien { flex: 1; }
   .mesa.canasta .franja .icono { order: 0; }
