@@ -1,28 +1,15 @@
 <!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#14171c">
-<title>CHIN · dos pilas, un grito</title>
-<meta name="description" content="Juegos de cartas para jugar con un amigo. Primer juego: CHIN, gana el que más rápido canta.">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" href="iconos/icono-192.png">
-<link rel="apple-touch-icon" href="iconos/icono-180.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<link rel="stylesheet" href="css/estilo.css">
-<link rel="stylesheet" href="css/caras.css">
-<link rel="stylesheet" href="css/lobby.css">
-<link rel="stylesheet" href="css/chin.css">
-<link rel="stylesheet" href="css/escoba.css">
-<link rel="stylesheet" href="css/canasta.css">
-</head>
-<body>
-<div class="grano"></div>
-<div class="pantalla" id="app"></div>
-<script src="vendor/peerjs.min.js"></script>
-<script src="vendor/supabase.js"></script>
-<script type="module" src="main.js"></script>
-</body>
-</html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><meta name="theme-color" content="#0A0C16"><title>AZAR</title>
+<link rel="canonical" href="https://pedropeyser-cloud.github.io/azar/">
+<style>html,body{margin:0;height:100%;background:#0A0C16;color:#F1EBDD;font:16px/1.5 system-ui,sans-serif;display:grid;place-items:center;text-align:center}a{color:#E9B54A}</style>
+<script>
+// Este juego se mudó a AZAR. Se conserva todo lo que trae el link (?sala=, ?mesa=, #…) y se borra la copia vieja guardada.
+(async () => {
+  try { const rs = await navigator.serviceWorker?.getRegistrations?.(); await Promise.all((rs || []).map((r) => r.unregister())); } catch {}
+  try { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } catch {}
+  const resto = location.pathname.replace(/^\/[^/]+\/?/, "");
+  location.replace("https://pedropeyser-cloud.github.io/azar/" + resto + location.search + location.hash);
+})();
+</script></head>
+<body><p>Nos mudamos a <a href="https://pedropeyser-cloud.github.io/azar/">AZAR</a>.</p></body></html>
